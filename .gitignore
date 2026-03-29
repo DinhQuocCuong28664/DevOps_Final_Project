@@ -1,0 +1,29 @@
+# ============================
+# Terraform
+# ============================
+# Thư mục chứa provider plugins đã tải về (rất nặng, không cần push)
+infrastructure/.terraform/
+
+# File trạng thái của Terraform (chứa thông tin nhạy cảm về hạ tầng)
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+
+# File kế hoạch (plan output)
+infrastructure/*.tfplan
+
+# Biến môi trường Terraform
+infrastructure/*.tfvars
+
+# ============================
+# Thông tin nhạy cảm (BẢO MẬT)
+# ============================
+# File chứa Access Key của IAM User - TUYỆT ĐỐI không được push lên GitHub
+*.csv
+
+# ============================
+# Hệ điều hành / IDE
+# ============================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

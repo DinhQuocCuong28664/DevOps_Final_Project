@@ -1,0 +1,28 @@
+# Phụ thuộc của thư viện
+node_modules/
+
+# Chứa các biến môi trường nhạy cảm (Cực kỳ quan trọng để bảo mật)
+.env
+.env.*
+
+# File Nhật ký (Logs)
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Các thư mục chứa kết quả bản build
+dist/
+build/
+
+# Thư mục Coverage (nếu bạn có chạy Test)
+coverage/
+
+# Rác của hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Cấu hình IDE (Không bắt buộc, nhưng nên có)
+.vscode/
+.idea/
