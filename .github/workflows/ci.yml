@@ -29,6 +29,11 @@ jobs:
         working-directory: ./application
         run: npm ci
 
+      # Kiểm tra chất lượng code bằng ESLint (Bắt buộc theo Rubric)
+      - name: Kiểm tra chất lượng code (Linting)
+        working-directory: ./application
+        run: npm run lint
+
       # Quét bảo mật DevSecOps bằng Trivy (Bắt buộc theo Rubric)
       - name: Quét bảo mật mã nguồn bằng Trivy
         uses: aquasecurity/trivy-action@master

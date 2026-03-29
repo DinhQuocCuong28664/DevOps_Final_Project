@@ -5,8 +5,8 @@
 infrastructure/.terraform/
 
 # File trạng thái của Terraform (chứa thông tin nhạy cảm về hạ tầng)
-infrastructure/terraform.tfstate
-infrastructure/terraform.tfstate.backup
+*.tfstate
+*.tfstate.backup
 
 # File kế hoạch (plan output)
 infrastructure/*.tfplan
