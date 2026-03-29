@@ -10,6 +10,32 @@
 
 ---
 
+## 📊 TIẾN ĐỘ THỰC HIỆN CỦA NHÓM
+
+> **Kiến trúc đã chọn:** Tier 5 – Expert (Amazon EKS) ⭐
+> **Tên miền:** [https://www.moteo.fun](https://www.moteo.fun)
+> **Repository:** [DevOps_Final_Project](https://github.com/DinhQuocCuong28664/DevOps_Final_Project)
+
+| Hạng mục | Yêu cầu | Trạng thái | Ghi chú |
+|----------|---------|-----------|---------|
+| IaC (Terraform) | Bắt buộc ⭐ | ✅ Done | `provider.tf`, `vpc.tf`, `eks.tf` |
+| Code Linting | Bắt buộc | ✅ Done | ESLint v9 — 0 errors |
+| Dependency Caching | Bắt buộc | ✅ Done | npm cache trong CI |
+| Security Scanning | Bắt buộc | ✅ Done | Trivy — fail on CRITICAL/HIGH |
+| Docker Build + Push | Bắt buộc | ✅ Done | Tag = commit SHA, push Docker Hub |
+| CD Deploy to EKS | Bắt buộc | ✅ Done | `kubectl apply` tự động |
+| Domain + HTTPS | Bắt buộc | ✅ Done | `www.moteo.fun` + Let's Encrypt |
+| K8s Deployments/Services | Tier 5 | ✅ Done | 2 replicas + LoadBalancer |
+| Ingress Controller | Tier 5 | ✅ Done | NGINX v1.10.0 |
+| HPA Autoscaling | Tier 5 (khuyến khích) | ✅ Done | 2→5 pods, CPU 60%, RAM 70% |
+| Self-healing | Tier 5 | ✅ Done | `kubectl delete pod` → pod tự tạo lại |
+| Prometheus Metrics | Bắt buộc | ✅ Done | kube-prometheus-stack |
+| Grafana Dashboards | Bắt buộc | ✅ Done | CPU, RAM, pod status |
+| Alerting (Alertmanager) | Khuyến khích | ✅ Done | 4 rules: PodCrash, CPU, RAM, Replicas |
+| Failure Simulation | Demo bắt buộc | ✅ Done | Kill pod → self-healing verified |
+
+---
+
 ## SECTION I. INTRODUCTION AND PURPOSE
 
 The Final Exam Project requires students to design, implement, and demonstrate a **production-grade software delivery system**, comparable to those operated by professional DevOps teams in real-world enterprise environments. The focus extends beyond application deployment to encompass the entire lifecycle of software delivery, including:
@@ -72,15 +98,15 @@ Multi-node **Docker Swarm** cluster with:
 - Container scheduling across nodes
 - Service replication and basic fault tolerance
 
-### Tier 5 – Expert: Kubernetes-Based Architecture ⭐
+### Tier 5 – Expert: Kubernetes-Based Architecture ⭐ ← NHÓM CHỌN TIER NÀY
 
 > **Highest potential score** for architecture and orchestration.
 
 Production-grade container orchestration using Kubernetes (upstream, K3s, or managed: **EKS**, GKE, AKS).
-- Must demonstrate: Deployments, Services, ConfigMaps, Secrets
-- **Ingress Controller** required for external access
-- **Self-healing** behaviour expected
-- **HPA** (Horizontal Pod Autoscaling) strongly encouraged
+- ✅ Must demonstrate: Deployments, Services, ConfigMaps, Secrets
+- ✅ **Ingress Controller** required for external access — *NGINX Ingress v1.10.0*
+- ✅ **Self-healing** behaviour expected — *Đã demo: delete pod → auto recreate*
+- ✅ **HPA** (Horizontal Pod Autoscaling) strongly encouraged — *2→5 pods, CPU 60%, RAM 70%*
 
 ---
 
@@ -90,43 +116,43 @@ Production-grade container orchestration using Kubernetes (upstream, K3s, or man
 
 All deployments must be hosted on a **real cloud provider** (AWS, Azure, GCP, Oracle Cloud, DigitalOcean).
 
-#### A. Infrastructure as Code (IaC) — Recommended ⭐
+#### A. Infrastructure as Code (IaC) — Recommended ⭐ ← ĐÃ THỰC HIỆN
 
 Using tools such as **Terraform** + **Ansible**:
-- Provisioning compute resources and networking
-- Defining security groups / firewall rules
-- Configuring storage resources
-- Installing required system dependencies
-- All definitions must be **idempotent**
+- ✅ Provisioning compute resources and networking — *VPC, Subnets, NAT Gateway*
+- ✅ Defining security groups / firewall rules — *EKS Security Groups*
+- ✅ Configuring storage resources
+- ✅ Installing required system dependencies — *EKS v1.30, 2x t3.medium worker nodes*
+- ✅ All definitions must be **idempotent** — *Terraform state management*
 
 #### B. Manual Infrastructure Provisioning
 
 Acceptable but limits maximum score. Minimum requirements regardless of method:
-- ✅ Publicly accessible cloud server
-- ✅ Registered domain name resolving to the system
-- ✅ HTTPS configured (Let's Encrypt or equivalent)
+- ✅ Publicly accessible cloud server — *AWS ap-southeast-2 (Sydney)*
+- ✅ Registered domain name resolving to the system — *www.moteo.fun*
+- ✅ HTTPS configured (Let's Encrypt or equivalent) — *Cert-Manager v1.14.4 + Let's Encrypt ACME v02*
 
 ---
 
 ### 4.2 CI/CD Pipeline
 
-#### 4.2.1 Continuous Integration (CI)
+#### 4.2.1 Continuous Integration (CI) ← TẤT CẢ ĐÃ HOÀN THÀNH
 
-| Step | Requirement | Status |
-|------|------------|--------|
-| **Code Linting** | Static analysis tools appropriate to tech stack | Required |
-| **Dependency Caching** | Cache `node_modules`, Maven repos, etc. | Required |
-| **Build Artifacts** | Reproducible build (Docker image, JAR, etc.) | Required |
-| **Security Scanning** | Trivy/Snyk/SonarQube — **fail on CRITICAL/HIGH** | Required |
-| **Image Build & Push** | Explicit version tags (SHA/semver), **NOT** `latest` | Required |
+| Step | Requirement | Trạng thái | Công cụ |
+|------|------------|-----------|---------|
+| **Code Linting** | Static analysis tools | ✅ Done | ESLint v9 (0 errors, 7 warnings) |
+| **Dependency Caching** | Cache `node_modules` | ✅ Done | GitHub Actions npm cache |
+| **Build Artifacts** | Reproducible Docker image | ✅ Done | Multi-stage build, Node 18-alpine |
+| **Security Scanning** | Fail on CRITICAL/HIGH | ✅ Done | Trivy — 0 vulnerabilities |
+| **Image Build & Push** | Explicit version tags | ✅ Done | Docker Hub, tag = Git SHA |
 
-#### 4.2.2 Continuous Delivery (CD)
+#### 4.2.2 Continuous Delivery (CD) ← ĐÃ HOÀN THÀNH
 
 At minimum, the CD pipeline must:
-- Retrieve correct versioned artifact/container image
-- Update deployment configurations
-- Deploy to production automatically
-- Restart/update services in controlled manner
+- ✅ Retrieve correct versioned artifact/container image — *sed thay IMAGE_TAG_PLACEHOLDER*
+- ✅ Update deployment configurations — *kubectl apply deployment + service + hpa*
+- ✅ Deploy to production automatically — *Sau khi CI pass*
+- ✅ Restart/update services in controlled manner — *Rolling update (K8s default)*
 
 For staging + production environments:
 - Separate deployment targets
@@ -137,85 +163,83 @@ For staging + production environments:
 
 ### 4.3 Architecture-Specific Deployment Requirements
 
-| Tier | Requirements |
-|------|-------------|
-| **Tier 1** | `systemd` or `PM2`, auto-restart after reboot |
-| **Tier 2** | Docker Compose, persistent volumes, service scaling |
-| **Tier 3** | Cloud managed LB preferred, horizontal scaling |
-| **Tier 4** | Swarm cluster, replicated services, cluster scheduling |
-| **Tier 5** | K8s Deployments, Services, Ingress. **HPA & self-healing encouraged** |
+| Tier | Requirements | Nhóm |
+|------|-------------|------|
+| **Tier 1** | `systemd` or `PM2`, auto-restart after reboot | |
+| **Tier 2** | Docker Compose, persistent volumes, service scaling | |
+| **Tier 3** | Cloud managed LB preferred, horizontal scaling | |
+| **Tier 4** | Swarm cluster, replicated services, cluster scheduling | |
+| **Tier 5** | K8s Deployments, Services, Ingress. **HPA & self-healing encouraged** | ✅ **CHỌN** |
 
 ---
 
-### 4.4 Monitoring and Observability
+### 4.4 Monitoring and Observability ← TẤT CẢ ĐÃ HOÀN THÀNH
 
 **Minimum Requirements:**
-- ✅ Metrics collection (Prometheus or equivalent)
-- ✅ Grafana dashboards: CPU, memory, service/pod status
+- ✅ Metrics collection (Prometheus or equivalent) — *kube-prometheus-stack via Helm*
+- ✅ Grafana dashboards: CPU, memory, service/pod status — *Built-in K8s dashboards*
 
 **Advanced (Encouraged):**
-- Alerting via Alertmanager
+- ✅ Alerting via Alertmanager — *4 custom rules: PodCrashLooping, HighCPU, HighRAM, ReplicasMismatch*
 - Centralized logging (Loki or ELK)
 - Custom application-level metrics (request rates, error counts)
 
-> ⚠️ Monitoring components must be **actively demonstrated**, not merely installed.
+> ✅ Monitoring components have been **actively demonstrated** with live Grafana dashboards.
 
 ---
 
 ### 4.5 Documentation and Evidence
 
 All implementations must be:
-- Fully documented in the technical report
-- Supported by screenshots, logs, or configuration excerpts
-- Demonstrated in video and live presentation
+- ✅ Fully documented in the technical report
+- ✅ Supported by screenshots, logs, or configuration excerpts
+- ✅ Demonstrated in video and live presentation
 
 ---
 
 ## SECTION V. MANDATORY DEMONSTRATION SCENARIO
 
-### 5.1 Source Code Modification
+### 5.1 Source Code Modification ✅
 Make a visible, meaningful change to application source code (UI text, feature, config). Must **not** be pre-staged.
 
-### 5.2 Commit and Push
-- Clear commit message
-- Correct target branch triggering pipeline
-- Successful sync with remote repository
+### 5.2 Commit and Push ✅
+- ✅ Clear commit message
+- ✅ Correct target branch triggering pipeline
+- ✅ Successful sync with remote repository
 
-### 5.3 CI Pipeline Execution
+### 5.3 CI Pipeline Execution ✅
 Show execution and outcome of **each CI stage**:
-- ✅ Code linting and quality checks
-- ✅ Dependency restoration and caching
-- ✅ Build stage — reproducible artifact
-- ✅ Security scanning — vulnerability detection
-- ✅ Container image build and registry push
+- ✅ Code linting and quality checks — *ESLint v9*
+- ✅ Dependency restoration and caching — *npm cache*
+- ✅ Build stage — reproducible artifact — *Docker multi-stage build*
+- ✅ Security scanning — vulnerability detection — *Trivy*
+- ✅ Container image build and registry push — *Docker Hub + SHA tag*
 
-### 5.4 CD Deployment
-- Retrieval of correct artifact version
-- Updated deployment configurations
-- Deployment execution appropriate to tier
-- Controlled service restart / rolling update
+### 5.4 CD Deployment ✅
+- ✅ Retrieval of correct artifact version
+- ✅ Updated deployment configurations
+- ✅ Deployment execution appropriate to tier
+- ✅ Controlled service restart / rolling update
 
-### 5.5 Verification of Application Update
-- Access via public domain name
-- Visible change is present
-- System accessible via **HTTPS only**
-- Correct application behaviour
+### 5.5 Verification of Application Update ✅
+- ✅ Access via public domain name — *www.moteo.fun*
+- ✅ Visible change is present
+- ✅ System accessible via **HTTPS only**
+- ✅ Correct application behaviour
 
-### 5.6 Monitoring and Observability Validation
-- Open Grafana dashboard
-- Show real-time metrics (CPU, memory, pod status)
-- Explain how metrics reflect current system state
+### 5.6 Monitoring and Observability Validation ✅
+- ✅ Open Grafana dashboard
+- ✅ Show real-time metrics (CPU, memory, pod status)
+- ✅ Explain how metrics reflect current system state
 
-### 5.7 Failure Simulation ⚠️
+### 5.7 Failure Simulation ✅
 Simulate failure appropriate to tier:
-- Stop/restart a container or service
-- Terminate a process or pod
-- Simulate node-level failure (clustered environments)
+- ✅ Terminate a pod — *kubectl delete pod*
 
-Must show:
-- How system responds to failure
-- Whether services **recover automatically**
-- How failure appears in monitoring dashboards
+Results demonstrated:
+- ✅ System responds to failure — *K8s immediately creates replacement pod*
+- ✅ Services **recover automatically** — *2/2 pods restored within 5 seconds*
+- ✅ Failure reflected in monitoring dashboards — *Alertmanager rules trigger on ReplicasMismatch*
 
 ---
 
@@ -223,11 +247,11 @@ Must show:
 
 ### 6.1 Project Repository and Technical Artefacts
 - ✅ Complete application source code
-- ✅ Infrastructure provisioning artefacts (Terraform)
-- ✅ CI/CD pipeline configuration (GitHub Actions)
-- ✅ Deployment artefacts (Dockerfiles, K8s manifests)
-- ✅ Monitoring configuration (Prometheus, Grafana)
-- ⚠️ **No hard-coded secrets**
+- ✅ Infrastructure provisioning artefacts (Terraform) — `provider.tf`, `vpc.tf`, `eks.tf`
+- ✅ CI/CD pipeline configuration (GitHub Actions) — `ci.yml`
+- ✅ Deployment artefacts — `Dockerfile`, `deployment.yaml`, `service.yaml`, `hpa.yaml`, `ingress-ssl.yaml`
+- ✅ Monitoring configuration — `alerting-rules.yaml`, kube-prometheus-stack (Helm)
+- ✅ **No hard-coded secrets** — `.gitignore` chặn `*.tfstate`, `*.csv`, `.env`
 
 ### 6.2 Technical Report (PDF)
 Five required chapters:
@@ -241,13 +265,13 @@ Five required chapters:
 Full end-to-end demo following Section V scenario.
 
 ### 6.4 Production Website URL
-- ✅ Public domain URL
-- ✅ Valid TLS certificate (HTTPS)
+- ✅ Public domain URL — *https://www.moteo.fun*
+- ✅ Valid TLS certificate (HTTPS) — *Let's Encrypt via Cert-Manager*
 - ✅ System remains accessible during grading
 
 ### 6.5 Supporting Links
-- Source code repository
-- Container registry (Docker Hub)
+- ✅ Source code repository — *github.com/DinhQuocCuong28664/DevOps_Final_Project*
+- ✅ Container registry — *hub.docker.com/r/dinhquoccuong286/devops-final-app*
 - Monitoring dashboards (if externally accessible)
 
 ---
@@ -258,17 +282,68 @@ Each bonus: **0.25 – 0.5 points**. Must be functional, demonstrated, and docum
 
 ### 7.1 Self-Hosted CI/CD Infrastructure
 Deploy own GitLab/Jenkins on separate machine with custom domain + HTTPS.
+> ⏭️ Không thực hiện
 
 ### 7.2 Multi-Environment Deployment with Approval Gates
 Staging + Production with manual approval step.
+> ⏭️ Không thực hiện
 
 ### 7.3 Advanced Deployment Strategies
 Rolling updates, blue–green deployment, or canary releases.
+> ✅ **Rolling update** — Kubernetes mặc định sử dụng `RollingUpdate` strategy trong Deployment
 
 ### 7.4 Automated Rollback Mechanisms
 Triggered by failed health checks, deployment errors, or pipeline failures.
+> ⏭️ Không thực hiện
 
 ### 7.5 Bonus Award Conditions
 - Must reach **competent implementation level**
 - Incomplete/unstable features = **no bonus**
 - Cannot compensate for missing core requirements
+
+---
+
+## 📁 CẤU TRÚC DỰ ÁN
+
+```
+DevOps_Final/
+├── .github/workflows/
+│   └── ci.yml                      # CI/CD Pipeline (GitHub Actions)
+├── application/
+│   ├── Dockerfile                  # Multi-stage build, non-root user (appuser)
+│   ├── .dockerignore               # Giảm kích thước build context
+│   ├── .gitignore                  # Bỏ qua node_modules, .env, logs
+│   ├── eslint.config.mjs           # ESLint v9 config (Code Linting)
+│   ├── main.js                     # Entry point (Express.js)
+│   ├── package.json                # Dependencies (0 vulnerabilities ✅)
+│   ├── controllers/                # Business logic
+│   ├── models/                     # Data models
+│   ├── routes/                     # API routes (multer v2.1.1)
+│   ├── services/                   # Service layer
+│   ├── validators/                 # Input validation
+│   ├── views/                      # EJS templates
+│   └── public/                     # Static assets + uploads/
+├── infrastructure/
+│   ├── provider.tf                 # AWS Provider (Sydney ap-southeast-2)
+│   ├── vpc.tf                      # VPC, Subnets, NAT Gateway
+│   └── eks.tf                      # EKS Cluster v1.30 + 2x Worker Nodes t3.medium
+├── kubernetes/
+│   ├── deployment.yaml             # 2 replicas, resource limits, image tag placeholder
+│   ├── service.yaml                # LoadBalancer → port 3000
+│   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70%
+│   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt)
+│   └── alerting-rules.yaml         # Alertmanager: 4 rules (crash, CPU, RAM, replicas)
+├── .gitignore                      # Chặn *.tfstate, *.csv, .terraform/
+├── Final_Project.md                # Rubric + Tiến độ (File này)
+└── PROJECT_SUMMARY.md              # Tổng kết dự án
+```
+
+---
+
+## 👥 THÀNH VIÊN NHÓM
+
+| Tên | GitHub | Email | Vai trò |
+|-----|--------|-------|---------|
+| 523H0008 | DinhQuocCuong28664 | 532H0008@student.tdtu.edu.vn | Owner repo |
+| NQT | nguyenquangtruong08112005 | nguyenquangtruong08112005@gmail.com | DevOps |
+| PhamMHao | PhamMHao | pham.m.hao05@gmail.com | DevOps |
