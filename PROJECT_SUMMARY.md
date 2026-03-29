@@ -90,7 +90,7 @@ DevOps_Final/
 │   ├── .dockerignore           # Giảm kích thước build context
 │   ├── .gitignore              # Bỏ qua node_modules, .env, logs
 │   ├── main.js                 # Entry point (Express.js)
-│   ├── package.json            # Dependencies (0 vulnerabilities ✅)r
+│   ├── package.json            # Dependencies (0 vulnerabilities ✅)
 │   ├── controllers/            # Business logic
 │   ├── models/                 # Data models
 │   ├── routes/                 # API routes
