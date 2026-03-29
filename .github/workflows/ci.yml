@@ -93,5 +93,7 @@ jobs:
           # Dùng lệnh sed để tìm chữ IMAGE_TAG_PLACEHOLDER và thay bằng tag image mới nhất
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/deployment.yaml
 
-          # Áp dụng bản vẽ lên cụm K8s
-          kubectl apply -f kubernetes/
+          # Áp dụng Deployment và Service lên cụm K8s
+          # (ingress-ssl.yaml đã được cài thủ công cùng cert-manager trên cluster)
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
