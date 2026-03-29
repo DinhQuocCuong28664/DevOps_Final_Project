@@ -97,3 +97,4 @@ jobs:
           # (ingress-ssl.yaml đã được cài thủ công cùng cert-manager trên cluster)
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
+          kubectl apply -f kubernetes/hpa.yaml
