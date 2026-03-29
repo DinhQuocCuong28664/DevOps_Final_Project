@@ -1,12 +1,13 @@
-name: Production CI Pipeline
+name: Production CI/CD Pipeline
 
 on:
   push:
     branches:
       - main
-    # Chỉ chạy pipeline khi code trong thư mục application thay đổi
+    # Chỉ chạy pipeline khi code hoặc K8s manifests thay đổi
     paths:
       - 'application/**'
+      - 'kubernetes/**'
       - '.github/workflows/**'
 
 jobs:
@@ -56,3 +57,36 @@ jobs:
           context: ./application
           push: true
           tags: dinhquoccuong286/devops-final-app:${{ steps.vars.outputs.sha_short }}
+
+  # ============================================================
+  # JOB 2: CD - Triển khai tự động lên Amazon EKS
+  # ============================================================
+  deploy-to-eks:
+    needs: build-and-push # BẮT BUỘC: CD chỉ chạy khi CI (build image) đã thành công
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cấu hình AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Lấy file cấu hình Kubeconfig của EKS
+        run: aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
+
+      - name: Lấy Version Tag hiện tại
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Triển khai lên Kubernetes (Deploy to EKS)
+        run: |
+          # Dùng lệnh sed để tìm chữ IMAGE_TAG_PLACEHOLDER và thay bằng tag image mới nhất
+          sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/deployment.yaml
+
+          # Áp dụng bản vẽ lên cụm K8s
+          kubectl apply -f kubernetes/
