@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-final-deployment
+  labels:
+    app: nodejs-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nodejs-web
+  template:
+    metadata:
+      labels:
+        app: nodejs-web
+    spec:
+      containers:
+      - name: nodejs-container
+        # Tạm thời để placeholder, CD pipeline sẽ tự động thay thế bằng mã SHA mới nhất
+        image: dinhquoccuong286/devops-final-app:IMAGE_TAG_PLACEHOLDER
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
