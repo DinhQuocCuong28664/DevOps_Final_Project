@@ -1,0 +1,58 @@
+name: Production CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    # Chỉ chạy pipeline khi code trong thư mục application thay đổi
+    paths:
+      - 'application/**'
+      - '.github/workflows/**'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Lấy mã nguồn (Checkout Code)
+        uses: actions/checkout@v4
+
+      - name: Thiết lập môi trường Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: './application/package-lock.json'
+
+      - name: Cài đặt thư viện (Install Dependencies)
+        working-directory: ./application
+        run: npm ci
+
+      # Quét bảo mật DevSecOps bằng Trivy (Bắt buộc theo Rubric)
+      - name: Quét bảo mật mã nguồn bằng Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './application'
+          format: 'table'
+          exit-code: '1' # Sẽ báo đỏ (fail) pipeline nếu phát hiện lỗi
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH' # Chỉ bắt lỗi nghiêm trọng
+
+      - name: Đăng nhập vào Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Lấy mã băm (commit hash) của Git để làm version tag (Không dùng tag 'latest')
+      - name: Tạo Version Tag cho Image
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build và Push Docker Image lên Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ./application
+          push: true
+          tags: dinhquoccuong286/devops-final-app:${{ steps.vars.outputs.sha_short }}
