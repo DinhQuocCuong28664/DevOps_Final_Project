@@ -1,11 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:18-alpine'
-            // Chạy dưới quyền root trong container để tránh lỗi phân quyền (nếu có)
-            args '-u root:root'
-        }
-    }
+    agent any // Không dùng Docker nữa
 
     stages {
         stage('Lấy mã nguồn') {
@@ -14,10 +8,18 @@ pipeline {
             }
         }
 
-        stage('Cài đặt Dependencies') {
+        stage('Cài đặt Node.js và Dependencies') {
             steps {
                 dir('application') {
-                    sh 'npm ci'
+                    // Dùng NVM tải Node 18 thẳng vào phiên làm việc Jenkins luôn
+                    sh '''
+                        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                        export NVM_DIR="$HOME/.nvm"
+                        [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
+                        nvm install 18
+                        nvm use 18
+                        npm ci
+                    '''
                 }
             }
         }
@@ -25,7 +27,12 @@ pipeline {
         stage('Kiểm tra chất lượng code (Lint)') {
             steps {
                 dir('application') {
-                    sh 'npm run lint'
+                    sh '''
+                        export NVM_DIR="$HOME/.nvm"
+                        [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
+                        nvm use 18
+                        npm run lint
+                    '''
                 }
             }
         }
