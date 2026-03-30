@@ -33,6 +33,9 @@
 | Grafana Dashboards | Bắt buộc | ✅ Done | CPU, RAM, pod status |
 | Alerting (Alertmanager) | Khuyến khích | ✅ Done | 4 rules: PodCrash, CPU, RAM, Replicas |
 | Failure Simulation | Demo bắt buộc | ✅ Done | Kill pod → self-healing verified |
+| **Self-Hosted CI/CD** | ⭐ Bonus | ✅ Done | Jenkins trên EC2 — `jenkins.moteo.fun` (HTTPS) |
+| **Multi-Environment** | ⭐ Bonus | ✅ Done | Staging → Manual Approve → Production |
+| **Automated Rollback** | ⭐ Bonus | ✅ Done | Health check fail → `kubectl rollout undo` |
 
 ---
 
@@ -151,13 +154,13 @@ Acceptable but limits maximum score. Minimum requirements regardless of method:
 At minimum, the CD pipeline must:
 - ✅ Retrieve correct versioned artifact/container image — *sed thay IMAGE_TAG_PLACEHOLDER*
 - ✅ Update deployment configurations — *kubectl apply deployment + service + hpa*
-- ✅ Deploy to production automatically — *Sau khi CI pass*
-- ✅ Restart/update services in controlled manner — *Rolling update (K8s default)*
+- ✅ Deploy to production automatically — *Sau khi CI pass + Manual Approve*
+- ✅ Restart/update services in controlled manner — *RollingUpdate: maxUnavailable=0, maxSurge=1*
 
 For staging + production environments:
-- Separate deployment targets
-- Manual approval gate
-- Documented deployment strategy (recreate, rolling update)
+- ✅ Separate deployment targets — *namespace `staging` (1 replica) + namespace `production` (2 replicas)*
+- ✅ Manual approval gate — *GitHub Environment `production` + Required reviewer (523H0008)*
+- ✅ Documented deployment strategy — *RollingUpdate + readinessProbe + automated rollback*
 
 ---
 
@@ -247,11 +250,13 @@ Results demonstrated:
 
 ### 6.1 Project Repository and Technical Artefacts
 - ✅ Complete application source code
-- ✅ Infrastructure provisioning artefacts (Terraform) — `provider.tf`, `vpc.tf`, `eks.tf`
-- ✅ CI/CD pipeline configuration (GitHub Actions) — `ci.yml`
+- ✅ Infrastructure provisioning artefacts (Terraform) — `provider.tf`, `vpc.tf`, `eks.tf`, `jenkins.tf`
+- ✅ CI/CD pipeline configuration (GitHub Actions) — `ci.yml` (3 jobs: CI → Staging → Production)
+- ✅ Self-Hosted CI/CD (Jenkins) — `Jenkinsfile`, `jenkins-setup.sh`, `jenkins.moteo.fun`
 - ✅ Deployment artefacts — `Dockerfile`, `deployment.yaml`, `service.yaml`, `hpa.yaml`, `ingress-ssl.yaml`
+- ✅ Multi-Environment — `staging/` (namespace, deployment, service) + `production/` (namespace)
 - ✅ Monitoring configuration — `alerting-rules.yaml`, kube-prometheus-stack (Helm)
-- ✅ **No hard-coded secrets** — `.gitignore` chặn `*.tfstate`, `*.csv`, `.env`
+- ✅ **No hard-coded secrets** — `.gitignore` chặn `*.tfstate`, `*.csv`, `.env`, `*.pem`
 
 ### 6.2 Technical Report (PDF)
 Five required chapters:
@@ -280,21 +285,33 @@ Full end-to-end demo following Section V scenario.
 
 Each bonus: **0.25 – 0.5 points**. Must be functional, demonstrated, and documented.
 
-### 7.1 Self-Hosted CI/CD Infrastructure
+### 7.1 Self-Hosted CI/CD Infrastructure ✅
 Deploy own GitLab/Jenkins on separate machine with custom domain + HTTPS.
-> ⏭️ Không thực hiện
+> ✅ **Đã thực hiện** — Jenkins chạy trên EC2 `t3.small` (Ubuntu 22.04)
+> - URL: **https://jenkins.moteo.fun** (Nginx reverse proxy + Let's Encrypt SSL)
+> - Terraform IaC: `jenkins.tf` (EC2 + Security Group + Elastic IP + SSH Key Pair)
+> - Auto-install script: `jenkins-setup.sh` (Docker, Jenkins, Nginx, Certbot)
+> - Pipeline: `Jenkinsfile` — tự động checkout, cài Node.js (NVM), chạy ESLint
+> - Jenkins version: 2.541.3 LTS (JDK 17)
 
-### 7.2 Multi-Environment Deployment with Approval Gates
+### 7.2 Multi-Environment Deployment with Approval Gates ✅
 Staging + Production with manual approval step.
-> ⏭️ Không thực hiện
+> ✅ **Đã thực hiện** — Pipeline 3 jobs: `build-and-push` → `deploy-staging` → `deploy-production`
+> - **Staging** (namespace `staging`): 1 replica, ClusterIP, deploy tự động sau CI pass
+> - **Production** (namespace `production`): 2 replicas, LoadBalancer, cần Manual Approve
+> - GitHub Environment `production` với Required reviewer: `DinhQuocCuong28664` (523H0008)
+> - Readiness Probe trên cả 2 môi trường: `httpGet /` port 3000
 
-### 7.3 Advanced Deployment Strategies
+### 7.3 Advanced Deployment Strategies ✅
 Rolling updates, blue–green deployment, or canary releases.
-> ✅ **Rolling update** — Kubernetes mặc định sử dụng `RollingUpdate` strategy trong Deployment
+> ✅ **Rolling update** — `strategy.rollingUpdate.maxUnavailable: 0, maxSurge: 1` (zero-downtime)
 
-### 7.4 Automated Rollback Mechanisms
+### 7.4 Automated Rollback Mechanisms ✅
 Triggered by failed health checks, deployment errors, or pipeline failures.
-> ⏭️ Không thực hiện
+> ✅ **Đã thực hiện** — Trong job `deploy-production` của CI/CD pipeline:
+> - `kubectl rollout status` kiểm tra deployment (timeout 120s)
+> - Nếu fail → `kubectl rollout undo` tự động rollback về phiên bản trước
+> - Pipeline exit code 1 → thông báo lỗi cho team
 
 ### 7.5 Bonus Award Conditions
 - Must reach **competent implementation level**
@@ -308,7 +325,7 @@ Triggered by failed health checks, deployment errors, or pipeline failures.
 ```
 DevOps_Final/
 ├── .github/workflows/
-│   └── ci.yml                      # CI/CD Pipeline (GitHub Actions)
+│   └── ci.yml                      # CI/CD Pipeline 3 jobs (CI → Staging → Production)
 ├── application/
 │   ├── Dockerfile                  # Multi-stage build, non-root user (appuser)
 │   ├── .dockerignore               # Giảm kích thước build context
@@ -324,16 +341,25 @@ DevOps_Final/
 │   ├── views/                      # EJS templates
 │   └── public/                     # Static assets + uploads/
 ├── infrastructure/
-│   ├── provider.tf                 # AWS Provider (Sydney ap-southeast-2)
+│   ├── provider.tf                 # AWS Provider + TLS Provider
 │   ├── vpc.tf                      # VPC, Subnets, NAT Gateway
-│   └── eks.tf                      # EKS Cluster v1.30 + 2x Worker Nodes t3.medium
+│   ├── eks.tf                      # EKS Cluster v1.30 + 2x Worker Nodes t3.medium
+│   ├── jenkins.tf                  # ⭐ Jenkins EC2 t3.small + SG + EIP + SSH Key
+│   └── jenkins-setup.sh            # ⭐ Auto-install Docker, Jenkins, Nginx, Certbot
 ├── kubernetes/
-│   ├── deployment.yaml             # 2 replicas, resource limits, image tag placeholder
-│   ├── service.yaml                # LoadBalancer → port 3000
-│   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70%
-│   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt)
-│   └── alerting-rules.yaml         # Alertmanager: 4 rules (crash, CPU, RAM, replicas)
-├── .gitignore                      # Chặn *.tfstate, *.csv, .terraform/
+│   ├── staging/                    # ⭐ Staging Environment
+│   │   ├── namespace.yaml          #    Namespace staging
+│   │   ├── deployment.yaml         #    1 replica, RollingUpdate, readinessProbe
+│   │   └── service.yaml            #    ClusterIP (internal)
+│   ├── production/                 # ⭐ Production Environment
+│   │   └── namespace.yaml          #    Namespace production
+│   ├── deployment.yaml             # 2 replicas, RollingUpdate, readinessProbe (production)
+│   ├── service.yaml                # LoadBalancer → port 3000 (production)
+│   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70% (production)
+│   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt, production)
+│   └── alerting-rules.yaml         # Alertmanager: 4 rules (production namespace)
+├── Jenkinsfile                     # ⭐ Jenkins Pipeline (checkout → npm ci → lint)
+├── .gitignore                      # Chặn *.tfstate, *.csv, *.pem, .terraform/
 ├── Final_Project.md                # Rubric + Tiến độ (File này)
 └── PROJECT_SUMMARY.md              # Tổng kết dự án
 ```
