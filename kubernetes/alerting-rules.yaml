@@ -13,7 +13,7 @@ spec:
     # Alert 1: Pod bị crash liên tục (CrashLoopBackOff)
     # =============================================
     - alert: PodCrashLooping
-      expr: rate(kube_pod_container_status_restarts_total{namespace="default"}[5m]) > 0
+      expr: rate(kube_pod_container_status_restarts_total{namespace="production"}[5m]) > 0
       for: 2m
       labels:
         severity: critical
@@ -26,9 +26,9 @@ spec:
     # =============================================
     - alert: HighCPUUsage
       expr: |
-        (sum(rate(container_cpu_usage_seconds_total{namespace="default", container!=""}[5m])) by (pod)
+        (sum(rate(container_cpu_usage_seconds_total{namespace="production", container!=""}[5m])) by (pod)
         /
-        sum(kube_pod_container_resource_limits{namespace="default", resource="cpu"}) by (pod))
+        sum(kube_pod_container_resource_limits{namespace="production", resource="cpu"}) by (pod))
         * 100 > 80
       for: 3m
       labels:
@@ -42,9 +42,9 @@ spec:
     # =============================================
     - alert: HighMemoryUsage
       expr: |
-        (sum(container_memory_working_set_bytes{namespace="default", container!=""}) by (pod)
+        (sum(container_memory_working_set_bytes{namespace="production", container!=""}) by (pod)
         /
-        sum(kube_pod_container_resource_limits{namespace="default", resource="memory"}) by (pod))
+        sum(kube_pod_container_resource_limits{namespace="production", resource="memory"}) by (pod))
         * 100 > 85
       for: 3m
       labels:
@@ -57,7 +57,7 @@ spec:
     # Alert 4: Số pod ready ít hơn mong muốn
     # =============================================
     - alert: DeploymentReplicasMismatch
-      expr: kube_deployment_status_replicas_available{namespace="default", deployment="devops-final-deployment"} < kube_deployment_spec_replicas{namespace="default", deployment="devops-final-deployment"}
+      expr: kube_deployment_status_replicas_available{namespace="production", deployment="devops-final-deployment"} < kube_deployment_spec_replicas{namespace="production", deployment="devops-final-deployment"}
       for: 1m
       labels:
         severity: critical

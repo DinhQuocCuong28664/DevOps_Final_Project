@@ -20,6 +20,9 @@ infrastructure/*.tfvars
 # File chứa Access Key của IAM User - TUYỆT ĐỐI không được push lên GitHub
 *.csv
 
+# SSH key (Jenkins server)
+*.pem
+
 # ============================
 # Hệ điều hành / IDE
 # ============================

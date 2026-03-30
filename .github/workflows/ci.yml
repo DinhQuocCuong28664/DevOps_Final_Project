@@ -11,6 +11,9 @@ on:
       - '.github/workflows/**'
 
 jobs:
+  # ============================================================
+  # JOB 1: CI - Build, Test, Scan, Push Image
+  # ============================================================
   build-and-push:
     runs-on: ubuntu-latest
 
@@ -64,11 +67,12 @@ jobs:
           tags: dinhquoccuong286/devops-final-app:${{ steps.vars.outputs.sha_short }}
 
   # ============================================================
-  # JOB 2: CD - Triển khai tự động lên Amazon EKS
+  # JOB 2: CD - Deploy lên STAGING (tự động sau khi CI pass)
   # ============================================================
-  deploy-to-eks:
-    needs: build-and-push # BẮT BUỘC: CD chỉ chạy khi CI (build image) đã thành công
+  deploy-staging:
+    needs: build-and-push
     runs-on: ubuntu-latest
+    environment: staging  # GitHub Environment: staging
 
     steps:
       - name: Lấy mã nguồn
@@ -88,13 +92,84 @@ jobs:
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Triển khai lên Kubernetes (Deploy to EKS)
+      - name: Triển khai lên Staging
         run: |
-          # Dùng lệnh sed để tìm chữ IMAGE_TAG_PLACEHOLDER và thay bằng tag image mới nhất
+          # Tạo namespace staging nếu chưa có
+          kubectl apply -f kubernetes/staging/namespace.yaml
+
+          # Thay thế placeholder bằng image tag mới
+          sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/staging/deployment.yaml
+
+          # Deploy lên staging
+          kubectl apply -f kubernetes/staging/deployment.yaml
+          kubectl apply -f kubernetes/staging/service.yaml
+
+      - name: Kiểm tra Staging đã sẵn sàng
+        run: |
+          echo "⏳ Đang chờ Staging deployment ready..."
+          kubectl rollout status deployment/devops-final-deployment -n staging --timeout=120s
+          echo "✅ Staging deployment ready!"
+
+  # ============================================================
+  # JOB 3: CD - Deploy lên PRODUCTION (cần Manual Approval)
+  # ============================================================
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production  # GitHub Environment: production (cần approve thủ công)
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cấu hình AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Lấy file cấu hình Kubeconfig của EKS
+        run: aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
+
+      - name: Lấy Version Tag hiện tại
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Triển khai lên Production
+        run: |
+          # Tạo namespace production nếu chưa có
+          kubectl apply -f kubernetes/production/namespace.yaml
+
+          # Thay thế placeholder bằng image tag mới
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/deployment.yaml
 
-          # Áp dụng Deployment và Service lên cụm K8s
-          # (ingress-ssl.yaml đã được cài thủ công cùng cert-manager trên cluster)
+          # Deploy lên production
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
           kubectl apply -f kubernetes/hpa.yaml
+
+      # ============================================================
+      # AUTOMATED ROLLBACK: Nếu health check fail → tự động rollback
+      # ============================================================
+      - name: Health Check và Auto-Rollback
+        run: |
+          echo "⏳ Đang kiểm tra Production deployment..."
+
+          # Chờ deployment hoàn thành (timeout 120 giây)
+          if kubectl rollout status deployment/devops-final-deployment -n production --timeout=120s; then
+            echo "✅ Production deployment thành công!"
+          else
+            echo "❌ Production deployment THẤT BẠI! Đang rollback..."
+
+            # Tự động rollback về phiên bản trước
+            kubectl rollout undo deployment/devops-final-deployment -n production
+
+            # Chờ rollback hoàn thành
+            kubectl rollout status deployment/devops-final-deployment -n production --timeout=60s
+
+            echo "🔄 Đã rollback thành công về phiên bản trước!"
+
+            # Fail pipeline để thông báo lỗi
+            exit 1
+          fi
