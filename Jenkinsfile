@@ -20,7 +20,7 @@ pipeline {
                         nvm use 18
                         npm ci
                     '''
-                }
+                }   
             }
         }
 
