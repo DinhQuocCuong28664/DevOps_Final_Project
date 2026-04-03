@@ -72,6 +72,13 @@ output "s3_uploads_bucket_name" {
   description = "Tên S3 bucket dùng cho image uploads"
 }
 
+# Gắn policy S3 vào IAM Role của EKS Node Group
+# Nếu thiếu bước này, pods sẽ bị AccessDenied khi upload ảnh lên S3
+resource "aws_iam_role_policy_attachment" "s3_upload_attach" {
+  role       = module.eks.eks_managed_node_groups["worker_nodes"].iam_role_name
+  policy_arn = aws_iam_policy.s3_upload.arn
+}
+
 output "s3_uploads_bucket_region" {
   value       = aws_s3_bucket.uploads.region
   description = "Region của S3 bucket"
