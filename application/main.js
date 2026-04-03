@@ -23,11 +23,13 @@ app.use('/products', productRoutes);
 const PORT = process.env.PORT || 3000;
 
 async function start() {
-  // Đảm bảo thư mục uploads tồn tại
-  const uploadsDir = path.join(__dirname, 'public', 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    console.log(`Created uploads directory at ${uploadsDir}`);
+  // Chỉ tạo thư mục uploads khi KHÔNG dùng S3 (chế độ dev local)
+  if (!process.env.S3_BUCKET_NAME) {
+    const uploadsDir = path.join(__dirname, 'public', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      console.log(`Created uploads directory at ${uploadsDir}`);
+    }
   }
 
   // Try to connect to MongoDB once with 3s timeout

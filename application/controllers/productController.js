@@ -24,7 +24,7 @@ async function create(req, res, next) {
   try {
     const file = req.file;
     const payload = (({ name, price, color, description }) => ({ name, price, color, description }))(req.body);
-    if (file) payload.imageUrl = `/uploads/${file.filename}`;
+    if (file) payload.imageUrl = file.location || `/uploads/${file.filename}`;
     const item = await dataSource.create(payload);
     res.status(201).json({ data: item, ...meta() });
   } catch (err) { next(err); }
@@ -34,7 +34,7 @@ async function put(req, res, next) {
   try {
     const file = req.file;
     const payload = (({ name, price, color, description }) => ({ name, price, color, description }))(req.body);
-    if (file) payload.imageUrl = `/uploads/${file.filename}`;
+    if (file) payload.imageUrl = file.location || `/uploads/${file.filename}`;
     const item = await dataSource.replace(req.params.id, payload);
     if (!item) return res.status(404).json({ message: 'Not found', ...meta() });
     res.json({ data: item, ...meta() });
@@ -46,7 +46,7 @@ async function patch(req, res, next) {
     const file = req.file;
     const payload = {};
     ['name','price','color','description'].forEach(k => { if (k in req.body) payload[k] = req.body[k]; });
-    if (file) payload.imageUrl = `/uploads/${file.filename}`;
+    if (file) payload.imageUrl = file.location || `/uploads/${file.filename}`;
     const item = await dataSource.patch(req.params.id, payload);
     if (!item) return res.status(404).json({ message: 'Not found', ...meta() });
     res.json({ data: item, ...meta() });

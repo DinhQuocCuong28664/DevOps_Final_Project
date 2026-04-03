@@ -5,18 +5,45 @@ const validators = require('../validators/productValidator');
 const { validationResult } = require('express-validator');
 const multer = require('multer');
 const path = require('path');
+const { S3Client } = require('@aws-sdk/client-s3');
+const multerS3 = require('multer-s3');
 
-// multer storage config
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '..', 'public', 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    const safe = Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-    cb(null, safe);
-  }
-});
-const upload = multer({ storage });
+// ============================================================
+// Cấu hình Upload: Ưu tiên S3 (production), fallback local (dev)
+// ============================================================
+let upload;
+
+if (process.env.S3_BUCKET_NAME) {
+  // --- PRODUCTION: Upload thẳng lên Amazon S3 ---
+  const s3 = new S3Client({ region: process.env.AWS_REGION || 'ap-southeast-2' });
+
+  const s3Storage = multerS3({
+    s3: s3,
+    bucket: process.env.S3_BUCKET_NAME,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: function (req, file, cb) {
+      const safe = Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      cb(null, `uploads/${safe}`);
+    }
+  });
+
+  upload = multer({ storage: s3Storage });
+  console.log(`[Upload] Using S3 bucket: ${process.env.S3_BUCKET_NAME}`);
+} else {
+  // --- LOCAL DEV: Lưu vào disk (chỉ dùng khi phát triển) ---
+  const localStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, path.join(__dirname, '..', 'public', 'uploads'));
+    },
+    filename: function (req, file, cb) {
+      const safe = Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      cb(null, safe);
+    }
+  });
+
+  upload = multer({ storage: localStorage });
+  console.log('[Upload] S3 not configured — using local disk storage (dev mode)');
+}
 
 function handleValidation(req, res, next) {
   const errors = validationResult(req);

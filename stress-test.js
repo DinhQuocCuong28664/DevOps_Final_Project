@@ -1,6 +1,6 @@
-const http = require('http');
+const https = require('https');
 
-const URL = 'http://www.moteo.fun/';
+const URL = 'https://www.moteo.fun/';
 const CONCURRENCY = 200; // Số lượng khách hàng ảo cùng lúc truy cập liên tục
 let requestCount = 0;
 
@@ -10,7 +10,7 @@ console.log(`(Nhấn Ctrl+C bất cứ lúc nào để dừng lại)`);
 console.log('------------------------------------------------------------');
 
 function sendRequest() {
-    http.get(URL, (res) => {
+    https.get(URL, (res) => {
         requestCount++;
         
         // Cứ mỗi 1000 requests thì báo cáo tiến độ 1 lần

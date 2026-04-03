@@ -17,13 +17,15 @@ terraform apply -auto-approve
 > ⏱️ Chờ khoảng **15–20 phút** để AWS tạo VPC + EKS + Jenkins EC2.
 
 ### Bước 1.2: Ghi lại thông tin quan trọng
-Sau khi apply xong, Terraform sẽ hiện 3 output:
+Sau khi apply xong, Terraform sẽ hiện các output:
 ```
-jenkins_public_ip = "x.x.x.x"        ← IP Jenkins (dùng cho DNS)
-jenkins_ssh       = "ssh ubuntu@..."  ← Lệnh SSH vào Jenkins
-jenkins_url       = "https://jenkins.moteo.fun"
+jenkins_public_ip       = "x.x.x.x"        ← IP Jenkins (dùng cho DNS)
+jenkins_ssh             = "ssh ubuntu@..."  ← Lệnh SSH vào Jenkins
+jenkins_url             = "https://jenkins.moteo.fun"
+s3_uploads_bucket_name  = "devops-final-uploads-dqc28664"  ← S3 bucket cho image uploads
 ```
 **Lưu lại IP này!** Bạn sẽ cần nó cho bước DNS.
+> S3 bucket đã được cấu hình tên cố định, không cần thay đổi gì trong `deployment.yaml`.
 
 ### Bước 1.3: Kết nối kubectl vào EKS Cluster mới
 ```bash
@@ -174,7 +176,7 @@ kubectl get pods -n staging
 
 # 3. Kiểm tra services
 kubectl get svc -A
-# Phải thấy LoadBalancer ở production + ingress-nginx
+# Phải thấy ClusterIP ở production + LoadBalancer ở ingress-nginx
 
 # 4. Kiểm tra SSL certificate
 kubectl get certificate -n production
@@ -240,7 +242,7 @@ kubectl get svc -A | grep LoadBalancer
 cd infrastructure
 terraform destroy -auto-approve
 ```
-> ⏱️ Chờ khoảng **10–15 phút** để AWS xóa toàn bộ.
+> ⏱️ Chờ khoảng **10–15 phút** để AWS xóa toàn bộ (bao gồm cả S3 bucket — tự động xóa ảnh nhờ `force_destroy`).
 
 ### Bước 9.6: Xóa DNS trên Hostinger
 - Vào Hostinger → DNS Records → **Xóa** bản ghi CNAME `www` và A `jenkins`.

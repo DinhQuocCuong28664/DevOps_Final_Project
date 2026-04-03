@@ -27,8 +27,8 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy toàn bộ source code ứng dụng
 COPY . .
 
-# Tạo sẵn thư mục uploads và cấp toàn quyền thư mục /app cho appuser
-# (Fix lỗi EACCES: permission denied, mkdir '/app/public/uploads')
+# Tạo thư mục uploads cho chế độ dev fallback (production dùng S3)
+# Cấp quyền thư mục /app cho appuser
 RUN mkdir -p public/uploads && chown -R appuser:appgroup /app
 
 # Chuyển sang user không có quyền root

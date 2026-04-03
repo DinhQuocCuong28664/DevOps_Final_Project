@@ -29,6 +29,12 @@ spec:
         image: dinhquoccuong286/devops-final-app:IMAGE_TAG_PLACEHOLDER
         ports:
         - containerPort: 3000
+        # Biến môi trường cho S3 Image Upload
+        env:
+        - name: S3_BUCKET_NAME
+          value: "devops-final-uploads-dqc28664"
+        - name: AWS_REGION
+          value: "ap-southeast-2"
         # Readiness Probe: K8s kiểm tra pod sẵn sàng trước khi route traffic vào
         readinessProbe:
           httpGet:
