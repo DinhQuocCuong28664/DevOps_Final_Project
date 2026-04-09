@@ -1,0 +1,42 @@
+# MongoDB Deployment cho EKS
+# Chạy 1 replica MongoDB với persistent storage
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb-deployment
+  namespace: production
+  labels:
+    app: mongodb
+spec:
+  replicas: 1  # MongoDB standalone (đủ cho đồ án)
+  selector:
+    matchLabels:
+      app: mongodb
+  strategy:
+    type: Recreate  # Không dùng RollingUpdate vì EBS chỉ mount 1 pod
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7  # MongoDB 7 (phiên bản mới nhất, ổn định)
+        ports:
+        - containerPort: 27017
+        # Giới hạn tài nguyên để không chiếm hết resource của worker node
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        # Mount volume để data không mất khi pod restart
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+      volumes:
+      - name: mongodb-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc

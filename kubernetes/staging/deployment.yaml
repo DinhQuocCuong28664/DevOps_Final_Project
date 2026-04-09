@@ -29,6 +29,8 @@ spec:
         - containerPort: 3000
         # Biến môi trường cho S3 Image Upload
         env:
+        - name: MONGO_URI
+          value: "mongodb://mongodb-service.staging:27017/products_db"
         - name: S3_BUCKET_NAME
           value: "devops-final-uploads-dqc28664"
         - name: AWS_REGION

@@ -1,0 +1,14 @@
+# PersistentVolumeClaim cho MongoDB
+# Sử dụng EBS gp3 (nằm trong Free Tier 30GB)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: production
+spec:
+  accessModes:
+    - ReadWriteOnce      # EBS chỉ hỗ trợ mount vào 1 node
+  storageClassName: gp3  # Dùng gp3 tiết kiệm hơn gp2
+  resources:
+    requests:
+      storage: 1Gi       # 1GB đủ cho đồ án, nằm trong Free Tier

@@ -97,10 +97,15 @@ jobs:
           # Tạo namespace staging nếu chưa có
           kubectl apply -f kubernetes/staging/namespace.yaml
 
+          # Deploy MongoDB trước (database phải sẵn sàng trước app)
+          kubectl apply -f kubernetes/mongodb-pvc.yaml -n staging
+          kubectl apply -f kubernetes/mongodb-deployment.yaml -n staging
+          kubectl apply -f kubernetes/mongodb-service.yaml -n staging
+
           # Thay thế placeholder bằng image tag mới
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/staging/deployment.yaml
 
-          # Deploy lên staging
+          # Deploy app lên staging
           kubectl apply -f kubernetes/staging/deployment.yaml
           kubectl apply -f kubernetes/staging/service.yaml
 
@@ -141,10 +146,15 @@ jobs:
           # Tạo namespace production nếu chưa có
           kubectl apply -f kubernetes/production/namespace.yaml
 
+          # Deploy MongoDB trước (database phải sẵn sàng trước app)
+          kubectl apply -f kubernetes/mongodb-pvc.yaml
+          kubectl apply -f kubernetes/mongodb-deployment.yaml
+          kubectl apply -f kubernetes/mongodb-service.yaml
+
           # Thay thế placeholder bằng image tag mới
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/deployment.yaml
 
-          # Deploy lên production
+          # Deploy app lên production
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
           kubectl apply -f kubernetes/hpa.yaml

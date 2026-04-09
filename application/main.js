@@ -37,8 +37,6 @@ async function start() {
   let usingMongo = false;
   try {
     await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 3000
     });
     usingMongo = true;
