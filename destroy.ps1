@@ -45,14 +45,31 @@ kubectl delete namespace production --ignore-not-found
 # BƯỚC 4: Chờ AWS dọn dẹp Load Balancers
 # ============================================================
 Write-Host "`n[4/5] Đợi AWS dọn dẹp Load Balancers..." -ForegroundColor Cyan
-Write-Host "  Kiểm tra LoadBalancer còn lại:" -ForegroundColor Cyan
-kubectl get svc -A --field-selector spec.type=LoadBalancer 2>$null
 
-Write-Host "  Đợi 90 giây để AWS xóa hoàn toàn Load Balancers..." -ForegroundColor Cyan
-Start-Sleep -Seconds 90
+$maxWait  = 300  # Tối đa 5 phút
+$interval = 15   # Kiểm tra mỗi 15 giây
+$elapsed  = 0
 
-Write-Host "  Kiểm tra lại sau khi chờ:" -ForegroundColor Cyan
-kubectl get svc -A --field-selector spec.type=LoadBalancer 2>$null
+while ($elapsed -lt $maxWait) {
+    $lbServices = kubectl get svc -A --field-selector spec.type=LoadBalancer --no-headers 2>$null
+    if (-not $lbServices) {
+        Write-Host "  ✅ Không còn LoadBalancer nào! (sau $elapsed giây)" -ForegroundColor Green
+        break
+    }
+    Write-Host "  ⏳ Vẫn còn LoadBalancer... chờ thêm $interval giây (tổng: $elapsed/$maxWait giây)" -ForegroundColor Cyan
+    Start-Sleep -Seconds $interval
+    $elapsed += $interval
+}
+
+if ($elapsed -ge $maxWait) {
+    Write-Host "  ⚠️  Đã chờ $maxWait giây nhưng LoadBalancer vẫn chưa xóa xong!" -ForegroundColor Red
+    Write-Host "  → Kiểm tra thủ công trên AWS Console trước khi tiếp tục." -ForegroundColor Red
+    $confirm = Read-Host "  Vẫn muốn chạy terraform destroy không? (y/n)"
+    if ($confirm -ne "y") {
+        Write-Host "  ❌ Đã hủy. Chạy lại script sau khi LB đã xóa xong." -ForegroundColor Red
+        exit 1
+    }
+}
 
 # ============================================================
 # BƯỚC 5: Terraform Destroy
