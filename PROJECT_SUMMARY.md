@@ -56,7 +56,7 @@ Code Push → Checkout → Node.js Setup → npm ci → Trivy Scan 🛡️ → D
 | File | Vai trò |
 |------|---------|
 | `deployment.yaml` | 2 replicas, resource limits, image tag placeholder cho CD |
-| `service.yaml` | LoadBalancer, port 80 → container port 3000 |
+| `service.yaml` | **ClusterIP**, port 80 → container port 3000 (internal, traffic vào qua Ingress) |
 
 **Cơ chế hoạt động:** CD pipeline dùng `sed` để thay thế `IMAGE_TAG_PLACEHOLDER` bằng commit SHA mới nhất, sau đó `kubectl apply` lên cụm EKS.
 
@@ -101,7 +101,8 @@ DevOps_Final/
 ├── infrastructure/
 │   ├── provider.tf             # AWS Provider (Sydney)
 │   ├── vpc.tf                  # VPC, Subnets, NAT Gateway
-│   └── eks.tf                  # EKS Cluster + Worker Nodes
+│   ├── eks.tf                  # EKS Cluster + Worker Nodes
+│   └── s3.tf                   # S3 bucket cho image uploads + IAM policy
 ├── kubernetes/
 │   ├── deployment.yaml         # 2 replicas, resource limits
 │   ├── service.yaml            # LoadBalancer Service

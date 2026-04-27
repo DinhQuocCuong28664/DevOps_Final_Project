@@ -25,7 +25,7 @@
 | Docker Build + Push | Bắt buộc | ✅ Done | Tag = commit SHA, push Docker Hub |
 | CD Deploy to EKS | Bắt buộc | ✅ Done | `kubectl apply` tự động |
 | Domain + HTTPS | Bắt buộc | ✅ Done | `www.moteo.fun` + Let's Encrypt |
-| K8s Deployments/Services | Tier 5 | ✅ Done | 2 replicas + LoadBalancer |
+| K8s Deployments/Services | Tier 5 | ✅ Done | 2 replicas, ClusterIP (traffic vào qua NGINX Ingress) |
 | Ingress Controller | Tier 5 | ✅ Done | NGINX v1.10.0 |
 | HPA Autoscaling | Tier 5 (khuyến khích) | ✅ Done | 2→5 pods, CPU 60%, RAM 70% |
 | Self-healing | Tier 5 | ✅ Done | `kubectl delete pod` → pod tự tạo lại |
@@ -344,6 +344,7 @@ DevOps_Final/
 │   ├── provider.tf                 # AWS Provider + TLS Provider
 │   ├── vpc.tf                      # VPC, Subnets, NAT Gateway
 │   ├── eks.tf                      # EKS Cluster v1.30 + 2x Worker Nodes t3.medium
+│   ├── s3.tf                       # S3 bucket for image uploads + IAM policy
 │   ├── jenkins.tf                  # ⭐ Jenkins EC2 t3.small + SG + EIP + SSH Key
 │   └── jenkins-setup.sh            # ⭐ Auto-install Docker, Jenkins, Nginx, Certbot
 ├── kubernetes/
@@ -354,7 +355,7 @@ DevOps_Final/
 │   ├── production/                 # ⭐ Production Environment
 │   │   └── namespace.yaml          #    Namespace production
 │   ├── deployment.yaml             # 2 replicas, RollingUpdate, readinessProbe (production)
-│   ├── service.yaml                # LoadBalancer → port 3000 (production)
+│   ├── service.yaml                # ClusterIP Service (traffic vào qua NGINX Ingress)
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70% (production)
 │   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt, production)
 │   └── alerting-rules.yaml         # Alertmanager: 4 rules (production namespace)

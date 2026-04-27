@@ -343,9 +343,9 @@ The system implements **two isolated environments** using Kubernetes namespaces:
 |--------|---------|------------|
 | Namespace | `staging` | `production` |
 | Replicas | 1 | 2 (min), 5 (max via HPA) |
-| Service Type | ClusterIP (internal) | LoadBalancer (external) |
+| Service Type | ClusterIP (internal) | ClusterIP (internal — external access via NGINX Ingress) |
 | Deployment Trigger | Automatic (after CI) | Manual approval required |
-| Domain Access | Internal only | `www.moteo.fun` (HTTPS) |
+| Domain Access | Internal only | `www.moteo.fun` (HTTPS via Ingress) |
 | Resource Requests | 100m CPU, 128Mi RAM | 100m CPU, 128Mi RAM |
 | Resource Limits | 250m CPU, 256Mi RAM | 250m CPU, 256Mi RAM |
 
@@ -391,13 +391,17 @@ The production environment uses HPA (`autoscaling/v2`) to automatically scale ba
 External access to the production application is managed through the **NGINX Ingress Controller** with automatic TLS certificate management:
 
 ```
-Internet → NGINX Ingress Controller (LoadBalancer)
+Internet → NGINX Ingress Controller (AWS ELB — the ONLY LoadBalancer)
                │
                ├── TLS Termination (Let's Encrypt certificate)
                │   └── Secret: moteo-tls-secret
                │
-               └── Route: www.moteo.fun → devops-final-service:80 (production)
+               └── Route: www.moteo.fun → devops-final-service:80 (ClusterIP)
+                                              │
+                                              └── Pods in production namespace
 ```
+
+**Design Decision**: The application `Service` (`devops-final-service`) uses `type: ClusterIP` intentionally. This prevents a redundant, insecure second AWS Elastic Load Balancer from being created. All external traffic enters exclusively through the single NGINX Ingress Controller's LoadBalancer, providing a unified entry point with TLS termination.
 
 **Cert-Manager ClusterIssuer**:
 - ACME Server: `https://acme-v02.api.letsencrypt.org/directory`
@@ -422,10 +426,34 @@ Kubernetes provides automatic self-healing capabilities:
 | `staging/service.yaml` | staging | ClusterIP service (port 80 → 3000) |
 | `production/namespace.yaml` | — | Creates `production` namespace |
 | `deployment.yaml` | production | 2-replica deployment with RollingUpdate + readiness probe |
-| `service.yaml` | production | LoadBalancer service (port 80 → 3000) |
+| `service.yaml` | production | **ClusterIP** service (port 80 → 3000, internal only) |
 | `hpa.yaml` | production | HPA: 2→5 pods, CPU 60%, RAM 70% |
 | `ingress-ssl.yaml` | production | NGINX Ingress + ClusterIssuer (Let's Encrypt) |
 | `alerting-rules.yaml` | monitoring | 4 PrometheusRule alerts for production |
+
+### 4.7 Persistent Image Storage (AWS S3)
+
+Because the application runs with `replicas: 2` and Kubernetes pods have ephemeral local storage, product images uploaded by users must be stored in a shared, persistent location. Local disk storage would cause images to be lost on pod restart and inaccessible across replicas.
+
+**Solution**: Images are uploaded directly to **AWS S3** using `multer-s3`, eliminating dependency on pod-local storage.
+
+| Component | Detail |
+|-----------|--------|
+| S3 Bucket | `devops-final-uploads-dqc28664` (fixed name, region `ap-southeast-2`) |
+| Terraform Resource | `infrastructure/s3.tf` — provisions bucket, public-read policy, IAM policy |
+| Upload Library | `multer-s3` v3 + `@aws-sdk/client-s3` v3 |
+| IAM Permission | EKS node role attached with `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` |
+| Public Access | `s3:GetObject` allowed for `Principal: *` on `uploads/*` prefix (browser can load images) |
+| Env Variables | `S3_BUCKET_NAME` and `AWS_REGION` injected via `deployment.yaml` (both staging + production) |
+| Dev Fallback | If `S3_BUCKET_NAME` is unset, app falls back to local `public/uploads/` (development only) |
+
+**Upload Flow**:
+```
+User selects image → POST /products (multipart/form-data)
+  → multer-s3 streams file directly to S3
+  → file.location (S3 HTTPS URL) stored in DB as imageUrl
+  → Browser loads image directly from S3 (no proxy through app server)
+```
 
 ---
 
@@ -512,6 +540,7 @@ DevOps_Final/
 │   ├── provider.tf                 # AWS + TLS Terraform providers
 │   ├── vpc.tf                      # VPC, subnets, NAT Gateway
 │   ├── eks.tf                      # EKS cluster + managed node groups
+│   ├── s3.tf                       # S3 bucket for image uploads + IAM policy
 │   ├── jenkins.tf                  # Jenkins EC2 + Security Group + EIP
 │   └── jenkins-setup.sh            # Automated Jenkins provisioning script
 ├── kubernetes/
@@ -521,8 +550,8 @@ DevOps_Final/
 │   │   └── service.yaml            # ClusterIP (internal access only)
 │   ├── production/
 │   │   └── namespace.yaml          # Production namespace
-│   ├── deployment.yaml             # 2 replicas, RollingUpdate, readinessProbe
-│   ├── service.yaml                # LoadBalancer (external access)
+│   ├── deployment.yaml             # 2 replicas, RollingUpdate, readiness probe
+│   ├── service.yaml                # ClusterIP (internal — traffic via Ingress)
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70%
 │   ├── ingress-ssl.yaml            # NGINX Ingress + Let's Encrypt TLS
 │   └── alerting-rules.yaml         # 4 Alertmanager rules (production)
@@ -540,7 +569,15 @@ DevOps_Final/
 | 7.1 | Self-Hosted CI/CD | Jenkins 2.541.3 on EC2 t3.small, HTTPS via Nginx + Certbot | `jenkins.moteo.fun`, `jenkins.tf`, `Jenkinsfile` |
 | 7.2 | Multi-Environment + Approval Gates | Staging (auto) → Production (manual approve via GitHub Environments) | `ci.yml` (3 jobs), `staging/`, `production/` |
 | 7.3 | Advanced Deployment Strategy | RollingUpdate with `maxUnavailable: 0, maxSurge: 1` (zero-downtime) | `deployment.yaml` |
-| 7.4 | Automated Rollback | `kubectl rollout status` → failure → `kubectl rollout undo` | `ci.yml` (Job 3, lines 155–175) |
+| 7.4 | Automated Rollback | `kubectl rollout status` → failure → `kubectl rollout undo` | `ci.yml` (Job 3) |
+
+### Architectural Improvements
+
+| Improvement | Problem Solved | Implementation |
+|-------------|---------------|----------------|
+| S3 Image Storage | Images lost on pod restart/scaling (ephemeral disk) | `multer-s3`, `infrastructure/s3.tf`, S3 env vars in `deployment.yaml` |
+| ClusterIP Service | Redundant second LoadBalancer created alongside Ingress | `service.yaml` changed from `LoadBalancer` to `ClusterIP` |
+| HTTPS Stress Test | HTTP stress test blocked by NGINX 308 redirect | `stress-test.js` migrated to `https` module |
 
 ---
 
