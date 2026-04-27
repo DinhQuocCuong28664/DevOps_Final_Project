@@ -542,7 +542,8 @@ DevOps_Final/
 │   ├── eks.tf                      # EKS cluster + managed node groups
 │   ├── s3.tf                       # S3 bucket for image uploads + IAM policy
 │   ├── jenkins.tf                  # Jenkins EC2 + Security Group + EIP
-│   └── jenkins-setup.sh            # Automated Jenkins provisioning script
+│   ├── jenkins-setup.sh            # Automated Jenkins provisioning script
+│   └── workstation.tf              # DevOps Workstation EC2 + IAM Instance Profile (no access keys)
 ├── kubernetes/
 │   ├── staging/
 │   │   ├── namespace.yaml          # Staging namespace
@@ -555,7 +556,9 @@ DevOps_Final/
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70%
 │   ├── ingress-ssl.yaml            # NGINX Ingress + Let's Encrypt TLS
 │   └── alerting-rules.yaml         # 4 Alertmanager rules (production)
+├── setup.sh                        # Workstation bootstrap: installs AWS CLI, Terraform, kubectl, Helm, Docker, Node.js
 ├── Jenkinsfile                     # Jenkins pipeline (checkout → npm ci → lint)
+├── stress-test.js                  # HTTPS load test (200 concurrent users)
 ├── Guiding_light.md                # Infrastructure lifecycle guide (apply ↔ destroy)
 ├── Final_Project.md                # Project rubric & progress tracker
 ├── Final_Project_Student_Checklist.md # Student checklist

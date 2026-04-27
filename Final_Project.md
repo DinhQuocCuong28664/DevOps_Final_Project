@@ -346,7 +346,8 @@ DevOps_Final/
 │   ├── eks.tf                      # EKS Cluster v1.30 + 2x Worker Nodes t3.medium
 │   ├── s3.tf                       # S3 bucket for image uploads + IAM policy
 │   ├── jenkins.tf                  # ⭐ Jenkins EC2 t3.small + SG + EIP + SSH Key
-│   └── jenkins-setup.sh            # ⭐ Auto-install Docker, Jenkins, Nginx, Certbot
+│   ├── jenkins-setup.sh            # ⭐ Auto-install Docker, Jenkins, Nginx, Certbot
+│   └── workstation.tf              # DevOps Workstation EC2 + IAM Instance Profile (no keys)
 ├── kubernetes/
 │   ├── staging/                    # ⭐ Staging Environment
 │   │   ├── namespace.yaml          #    Namespace staging
@@ -359,6 +360,7 @@ DevOps_Final/
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70% (production)
 │   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt, production)
 │   └── alerting-rules.yaml         # Alertmanager: 4 rules (production namespace)
+├── setup.sh                        # Cài tools tự động: AWS CLI, Terraform, kubectl, Helm, Docker, Node.js
 ├── Jenkinsfile                     # ⭐ Jenkins Pipeline (checkout → npm ci → lint)
 ├── .gitignore                      # Chặn *.tfstate, *.csv, *.pem, .terraform/
 ├── Final_Project.md                # Rubric + Tiến độ (File này)

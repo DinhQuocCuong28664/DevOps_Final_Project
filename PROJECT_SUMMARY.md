@@ -102,11 +102,14 @@ DevOps_Final/
 │   ├── provider.tf             # AWS Provider (Sydney)
 │   ├── vpc.tf                  # VPC, Subnets, NAT Gateway
 │   ├── eks.tf                  # EKS Cluster + Worker Nodes
-│   └── s3.tf                   # S3 bucket cho image uploads + IAM policy
+│   ├── s3.tf                   # S3 bucket cho image uploads + IAM policy
+│   ├── jenkins.tf              # Jenkins EC2 + Security Group + EIP
+│   └── workstation.tf          # DevOps Workstation EC2 + IAM Instance Profile
 ├── kubernetes/
 │   ├── deployment.yaml         # 2 replicas, resource limits
 │   ├── service.yaml            # LoadBalancer Service
 │   └── ingress-ssl.yaml        # Ingress + TLS (Let's Encrypt)
 ├── .gitignore                  # Bỏ qua .terraform, tfstate, .csv
+├── setup.sh                    # Cài tools tự động trên EC2 mới (AWS CLI, Terraform, kubectl, Helm, Docker, Node.js)
 └── PROJECT_SUMMARY.md          # File này
 ```
