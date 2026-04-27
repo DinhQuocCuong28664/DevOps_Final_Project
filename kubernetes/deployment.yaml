@@ -40,10 +40,19 @@ spec:
         # Readiness Probe: K8s kiểm tra pod sẵn sàng trước khi route traffic vào
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3000
           initialDelaySeconds: 10
           periodSeconds: 5
+          failureThreshold: 3
+        # Liveness Probe: K8s restart pod nếu app bị treo
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
         resources:
           requests:
             cpu: "100m"

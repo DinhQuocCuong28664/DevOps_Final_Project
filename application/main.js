@@ -20,6 +20,35 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', uiRoutes);
 app.use('/products', productRoutes);
 
+// ============================================================
+// Health Check Endpoint — dùng cho K8s readinessProbe / livenessProbe
+// GET /health → 200 OK nếu app sẵn sàng, 503 nếu DB lỗi
+// ============================================================
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
+  const dbMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+
+  const health = {
+    status: dbStatus === 1 ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime_seconds: Math.floor(process.uptime()),
+    hostname: os.hostname(),
+    database: {
+      status: dbMap[dbStatus] || 'unknown',
+      using_memory_fallback: !dataSource.isMongo
+    },
+    memory: {
+      rss_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      heap_used_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      heap_total_mb: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+    }
+  };
+
+  const httpStatus = health.status === 'ok' ? 200 : 503;
+  res.status(httpStatus).json(health);
+});
+
 const PORT = process.env.PORT || 3000;
 
 async function start() {
