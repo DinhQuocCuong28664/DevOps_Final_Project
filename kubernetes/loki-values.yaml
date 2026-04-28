@@ -1,15 +1,15 @@
 # ============================================================
 # Loki Stack Helm Values
 # Chart: grafana/loki-stack
-# Namespace: monitoring (cùng namespace với kube-prometheus-stack)
-# Bao gồm: Loki + Promtail (thu thập log từ tất cả pods)
+# Namespace: monitoring (same namespace as kube-prometheus-stack)
+# Includes: Loki + Promtail (collects logs from all pods)
 # ============================================================
 
 loki:
   enabled: true
-  # Sử dụng single-binary mode (phù hợp cho course project)
+  # Single-binary mode (suitable for course project)
   isDefault: false
-  # Retention: giữ log 7 ngày
+  # Retention: keep logs for 7 days
   config:
     limits_config:
       retention_period: 168h
@@ -22,7 +22,7 @@ loki:
 promtail:
   enabled: true
   config:
-    # Thu thập log từ tất cả namespaces (production, staging, monitoring, ...)
+    # Collect logs from all namespaces (production, staging, monitoring, ...)
     snippets:
       pipelineStages:
         - cri: {}
@@ -84,18 +84,18 @@ promtail:
               target_label: __path__
               replacement: /var/log/pods/*$1*/*/*.log
 
-# Grafana: KHÔNG deploy riêng — dùng lại Grafana từ kube-prometheus-stack
+# Grafana: DO NOT deploy separately - reuse Grafana from kube-prometheus-stack
 grafana:
   enabled: false
 
-# Fluent Bit: tắt (dùng Promtail)
+# Fluent Bit: disabled (using Promtail instead)
 fluent-bit:
   enabled: false
 
-# filebeat: tắt
+# filebeat: disabled
 filebeat:
   enabled: false
 
-# logstash: tắt
+# logstash: disabled
 logstash:
   enabled: false

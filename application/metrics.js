@@ -1,24 +1,24 @@
 'use strict';
 // ============================================================
-// metrics.js — Custom Application-Level Metrics (prom-client)
-// Expose /metrics endpoint cho Prometheus scrape
+// metrics.js - Custom Application-Level Metrics (prom-client)
+// Exposes /metrics endpoint for Prometheus to scrape
 // ============================================================
 const client = require('prom-client');
 
-// Registry riêng để tránh conflict với default registry
+// Separate registry to avoid conflicts with the default registry
 const register = new client.Registry();
 
-// Thu thập các default metrics của Node.js process:
+// Collect default Node.js process metrics:
 // (event loop lag, heap usage, GC stats, active handles...)
 client.collectDefaultMetrics({
   register,
-  prefix: 'moteo_',         // prefix để dễ phân biệt trong Grafana
+  prefix: 'moteo_',         // Prefix for easy identification in Grafana
   gcDurationBuckets: [0.001, 0.01, 0.1, 1, 2, 5],
 });
 
-// ──────────────────────────────────────────────────────────
-// 1. HTTP Request Counter — đếm tổng số request theo method + route + status
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// 1. HTTP Request Counter - counts total requests by method + route + status
+// --------------------------------------------------------------
 const httpRequestsTotal = new client.Counter({
   name: 'moteo_http_requests_total',
   help: 'Total number of HTTP requests',
@@ -26,9 +26,9 @@ const httpRequestsTotal = new client.Counter({
   registers: [register],
 });
 
-// ──────────────────────────────────────────────────────────
-// 2. HTTP Request Duration — histogram đo thời gian xử lý mỗi request (ms)
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// 2. HTTP Request Duration - histogram measuring request processing time (ms)
+// --------------------------------------------------------------
 const httpRequestDurationMs = new client.Histogram({
   name: 'moteo_http_request_duration_ms',
   help: 'HTTP request duration in milliseconds',
@@ -37,18 +37,18 @@ const httpRequestDurationMs = new client.Histogram({
   registers: [register],
 });
 
-// ──────────────────────────────────────────────────────────
-// 3. Active HTTP Connections — gauge đo số request đang được xử lý
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// 3. Active HTTP Connections - gauge measuring in-flight requests
+// --------------------------------------------------------------
 const httpActiveRequests = new client.Gauge({
   name: 'moteo_http_active_requests',
   help: 'Number of HTTP requests currently being processed',
   registers: [register],
 });
 
-// ──────────────────────────────────────────────────────────
-// 4. Product Operations Counter — đếm CRUD operations
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// 4. Product Operations Counter - counts CRUD operations
+// --------------------------------------------------------------
 const productOperationsTotal = new client.Counter({
   name: 'moteo_product_operations_total',
   help: 'Total number of product CRUD operations',
@@ -56,9 +56,9 @@ const productOperationsTotal = new client.Counter({
   registers: [register],
 });
 
-// ──────────────────────────────────────────────────────────
-// 5. File Upload Counter — đếm số lần upload ảnh lên S3
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// 5. File Upload Counter - counts image uploads to S3
+// --------------------------------------------------------------
 const fileUploadsTotal = new client.Counter({
   name: 'moteo_file_uploads_total',
   help: 'Total number of file uploads to S3',
@@ -66,11 +66,11 @@ const fileUploadsTotal = new client.Counter({
   registers: [register],
 });
 
-// ──────────────────────────────────────────────────────────
-// Middleware: gắn vào Express để tự động đo mọi request
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
+// Middleware: attaches to Express to automatically measure all requests
+// --------------------------------------------------------------
 function metricsMiddleware(req, res, next) {
-  // Bỏ qua chính endpoint /metrics để tránh self-referencing
+  // Skip the /metrics endpoint itself to avoid self-referencing
   if (req.path === '/metrics') return next();
 
   const start = Date.now();
@@ -78,7 +78,7 @@ function metricsMiddleware(req, res, next) {
 
   res.on('finish', () => {
     const duration = Date.now() - start;
-    // Normalize route: thay :id params bằng :id để tránh cardinality explosion
+    // Normalize route: replace :id params with :id to avoid cardinality explosion
     const route = req.route ? req.route.path : req.path.replace(/\/\d+/g, '/:id');
 
     httpRequestsTotal.inc({
@@ -98,13 +98,13 @@ function metricsMiddleware(req, res, next) {
   next();
 }
 
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
 // Exports
-// ──────────────────────────────────────────────────────────
+// --------------------------------------------------------------
 module.exports = {
   register,
   metricsMiddleware,
-  // Counters dùng trong controllers/routes
+  // Counters used in controllers/routes
   productOperationsTotal,
   fileUploadsTotal,
 };

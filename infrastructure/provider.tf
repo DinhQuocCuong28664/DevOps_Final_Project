@@ -12,5 +12,5 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-southeast-2" # Khu vực Sydney
+  region = "ap-southeast-2" # Sydney region
 }

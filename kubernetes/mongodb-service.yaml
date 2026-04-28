@@ -1,15 +1,15 @@
-# Service cho MongoDB
-# App pods kết nối qua: mongodb://mongodb-service:27017/products_db
+# Service for MongoDB
+# App pods connect via: mongodb://mongodb-service:27017/products_db
 apiVersion: v1
 kind: Service
 metadata:
   name: mongodb-service
   namespace: production
 spec:
-  type: ClusterIP  # Chỉ truy cập nội bộ trong cluster (bảo mật)
+  type: ClusterIP  # Internal-only access within the cluster (secure)
   selector:
     app: mongodb
   ports:
     - protocol: TCP
-      port: 27017        # Port mặc định của MongoDB
+      port: 27017        # Default MongoDB port
       targetPort: 27017

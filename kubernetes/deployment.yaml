@@ -11,12 +11,12 @@ spec:
   selector:
     matchLabels:
       app: nodejs-web
-  # Chiến lược Rolling Update: không bao giờ hạ pod cũ trước khi pod mới ready
+  # Rolling Update strategy: never take down old pods before new ones are ready
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0   # Luôn giữ đủ pod chạy (zero-downtime)
-      maxSurge: 1          # Tạo tối đa 1 pod mới cùng lúc
+      maxUnavailable: 0   # Always keep enough pods running (zero-downtime)
+      maxSurge: 1          # Create at most 1 new pod at a time
   template:
     metadata:
       labels:
@@ -25,11 +25,11 @@ spec:
     spec:
       containers:
       - name: nodejs-container
-        # CD pipeline sẽ tự động thay IMAGE_TAG_PLACEHOLDER bằng Git SHA
+        # CD pipeline will replace IMAGE_TAG_PLACEHOLDER with the Git SHA
         image: dinhquoccuong286/devops-final-app:IMAGE_TAG_PLACEHOLDER
         ports:
         - containerPort: 3000
-        # Biến môi trường cho S3 Image Upload
+        # Environment variables for S3 Image Upload
         env:
         - name: MONGO_URI
           value: "mongodb://mongodb-service:27017/products_db"
@@ -37,7 +37,7 @@ spec:
           value: "devops-final-uploads-dqc28664"
         - name: AWS_REGION
           value: "ap-southeast-2"
-        # Readiness Probe: K8s kiểm tra pod sẵn sàng trước khi route traffic vào
+        # Readiness Probe: K8s checks if the pod is ready before routing traffic
         readinessProbe:
           httpGet:
             path: /health
@@ -45,7 +45,7 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
-        # Liveness Probe: K8s restart pod nếu app bị treo
+        # Liveness Probe: K8s restarts the pod if the app becomes unresponsive
         livenessProbe:
           httpGet:
             path: /health

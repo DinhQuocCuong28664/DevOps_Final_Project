@@ -6,7 +6,7 @@ metadata:
   labels:
     environment: staging
 spec:
-  type: ClusterIP  # Staging dùng ClusterIP (internal), không cần LoadBalancer
+  type: ClusterIP  # Staging uses ClusterIP (internal only), no LoadBalancer needed
   selector:
     app: nodejs-web
   ports:

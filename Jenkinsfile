@@ -1,17 +1,17 @@
 pipeline {
-    agent any // Không dùng Docker nữa
+    agent any
 
     stages {
-        stage('Lấy mã nguồn') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Cài đặt Node.js và Dependencies') {
+        stage('Install Node.js and Dependencies') {
             steps {
                 dir('application') {
-                    // Dùng NVM tải Node 18 thẳng vào phiên làm việc Jenkins luôn
+                    // Use NVM to load Node 18 directly into the Jenkins session
                     sh '''
                         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
                         export NVM_DIR="$HOME/.nvm"
@@ -20,11 +20,11 @@ pipeline {
                         nvm use 18
                         npm ci
                     '''
-                }   
+                }
             }
         }
 
-        stage('Kiểm tra chất lượng code (Lint)') {
+        stage('Lint') {
             steps {
                 dir('application') {
                     sh '''
@@ -37,22 +37,22 @@ pipeline {
             }
         }
 
-        stage('Hoàn tất') {
+        stage('Done') {
             steps {
-                echo 'CI Pipeline chạy trên Jenkins thành công!'
+                echo 'CI Pipeline completed successfully on Jenkins!'
             }
         }
     }
-    
+
     post {
         always {
-            echo 'Đã kết thúc quá trình chạy Jenkins Pipeline.'
+            echo 'Jenkins Pipeline run finished.'
         }
         success {
-            echo '🎉 PASS: Mã nguồn đạt tiêu chuẩn.'
+            echo '[PASS] Code quality check passed.'
         }
         failure {
-            echo '❌ FAIL: Có lỗi xảy ra trong quá trình kiểm tra.'
+            echo '[FAIL] An error occurred during the pipeline run.'
         }
     }
 }

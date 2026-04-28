@@ -1,12 +1,12 @@
 # ==========================================
-# S3 Bucket cho Image Uploads
+# S3 Bucket for Image Uploads
 # ==========================================
-# Thay vì lưu ảnh vào ổ đĩa tạm (ephemeral) của container,
-# upload thẳng lên S3 để không bị mất khi Pod restart/scale.
+# Instead of storing images on ephemeral container storage,
+# upload directly to S3 so data persists across pod restarts/scaling.
 
 resource "aws_s3_bucket" "uploads" {
   bucket        = "devops-final-uploads-dqc28664"
-  force_destroy = true  # Cho phép Terraform xóa bucket kể cả khi còn ảnh bên trong
+  force_destroy = true  # Allow Terraform to delete bucket even if it contains objects
 
   tags = {
     Name        = "devops-final-uploads"
@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "uploads" {
   }
 }
 
-# Cho phép public read (để browser đọc được ảnh sản phẩm)
+# Allow public read access (so browsers can load product images)
 resource "aws_s3_bucket_public_access_block" "uploads" {
   bucket = aws_s3_bucket.uploads.id
 
@@ -44,7 +44,7 @@ resource "aws_s3_bucket_policy" "uploads_public_read" {
 }
 
 # ==========================================
-# IAM Policy cho EKS Pods ghi vào S3
+# IAM Policy for EKS Pods to write to S3
 # ==========================================
 resource "aws_iam_policy" "s3_upload" {
   name        = "devops-final-s3-upload"
@@ -66,14 +66,14 @@ resource "aws_iam_policy" "s3_upload" {
   })
 }
 
-# Output tên bucket để dùng trong Kubernetes deployment
+# Output bucket name for use in Kubernetes deployment
 output "s3_uploads_bucket_name" {
   value       = aws_s3_bucket.uploads.bucket
-  description = "Tên S3 bucket dùng cho image uploads"
+  description = "Name of the S3 bucket used for image uploads"
 }
 
-# Gắn policy S3 vào IAM Role của EKS Node Group
-# Nếu thiếu bước này, pods sẽ bị AccessDenied khi upload ảnh lên S3
+# Attach S3 policy to EKS Node Group IAM Role
+# Without this, pods will get AccessDenied when uploading images to S3
 resource "aws_iam_role_policy_attachment" "s3_upload_attach" {
   role       = module.eks.eks_managed_node_groups["worker_nodes"].iam_role_name
   policy_arn = aws_iam_policy.s3_upload.arn
@@ -81,5 +81,5 @@ resource "aws_iam_role_policy_attachment" "s3_upload_attach" {
 
 output "s3_uploads_bucket_region" {
   value       = aws_s3_bucket.uploads.region
-  description = "Region của S3 bucket"
+  description = "AWS region of the S3 bucket"
 }

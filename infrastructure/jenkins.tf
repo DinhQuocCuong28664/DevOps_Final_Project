@@ -1,10 +1,10 @@
 # ============================================================
 # BONUS: Self-Hosted Jenkins CI/CD Server
 # EC2 t3.small + Security Group + Elastic IP
-# Domain: jenkins.moteo.fun (cần thêm A record trên Hostinger)
+# Domain: jenkins.moteo.fun (requires A record on Hostinger)
 # ============================================================
 
-# Lấy AMI Ubuntu 22.04 mới nhất
+# Fetch the latest Ubuntu 22.04 AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical (Ubuntu)
@@ -20,10 +20,10 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# Security Group cho Jenkins
+# Security Group for Jenkins
 resource "aws_security_group" "jenkins_sg" {
   name        = "jenkins-sg"
-  description = "Security Group cho Jenkins Server"
+  description = "Security Group for Jenkins Server"
   vpc_id      = module.vpc.vpc_id
 
   # SSH
@@ -53,7 +53,7 @@ resource "aws_security_group" "jenkins_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Jenkins UI (backup, Nginx sẽ proxy từ 443)
+  # Jenkins UI (backup port, Nginx proxies from 443)
   ingress {
     description = "Jenkins UI"
     from_port   = 8080
@@ -62,7 +62,7 @@ resource "aws_security_group" "jenkins_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Cho phép mọi traffic ra ngoài
+  # Allow all outbound traffic
   egress {
     from_port   = 0
     to_port     = 0
@@ -73,9 +73,13 @@ resource "aws_security_group" "jenkins_sg" {
   tags = {
     Name = "jenkins-security-group"
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-# SSH Key Pair (tự tạo, lưu vào file local)
+# SSH Key Pair (auto-generated, saved locally)
 resource "tls_private_key" "jenkins_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -86,14 +90,14 @@ resource "aws_key_pair" "jenkins_key" {
   public_key = tls_private_key.jenkins_key.public_key_openssh
 }
 
-# Lưu private key ra file để SSH
+# Save private key to local file for SSH access
 resource "local_file" "jenkins_private_key" {
   content         = tls_private_key.jenkins_key.private_key_pem
   filename        = "${path.module}/jenkins-key.pem"
   file_permission = "0400"
 }
 
-# EC2 Instance cho Jenkins
+# EC2 Instance for Jenkins
 resource "aws_instance" "jenkins" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = "t3.small"
@@ -102,13 +106,13 @@ resource "aws_instance" "jenkins" {
   key_name                    = aws_key_pair.jenkins_key.key_name
   associate_public_ip_address = true
 
-  # Ổ cứng 20GB (đủ cho Jenkins + Docker images)
+  # 20GB root volume (sufficient for Jenkins + Docker images)
   root_block_device {
     volume_size = 20
     volume_type = "gp3"
   }
 
-  # Script tự động cài đặt Jenkins khi EC2 khởi động
+  # Auto-install Jenkins when EC2 boots
   user_data = file("${path.module}/jenkins-setup.sh")
 
   tags = {
@@ -116,7 +120,7 @@ resource "aws_instance" "jenkins" {
   }
 }
 
-# Elastic IP (IP tĩnh, không đổi khi restart EC2)
+# Elastic IP (static IP, persists across EC2 restarts)
 resource "aws_eip" "jenkins_eip" {
   instance = aws_instance.jenkins.id
   domain   = "vpc"
@@ -127,19 +131,19 @@ resource "aws_eip" "jenkins_eip" {
 }
 
 # ============================================================
-# OUTPUT: Hiển thị thông tin sau khi terraform apply
+# OUTPUT
 # ============================================================
 output "jenkins_public_ip" {
-  description = "IP công khai của Jenkins Server (dùng cho DNS A record)"
+  description = "Public IP of Jenkins Server (use for DNS A record)"
   value       = aws_eip.jenkins_eip.public_ip
 }
 
 output "jenkins_url" {
-  description = "URL truy cập Jenkins (sau khi cấu hình DNS)"
+  description = "Jenkins access URL (after DNS is configured)"
   value       = "https://jenkins.moteo.fun"
 }
 
 output "jenkins_ssh" {
-  description = "Lệnh SSH vào Jenkins Server"
+  description = "SSH command for Jenkins Server"
   value       = "ssh ubuntu@${aws_eip.jenkins_eip.public_ip}"
 }

@@ -7,7 +7,7 @@ metadata:
     app: nodejs-web
     environment: staging
 spec:
-  replicas: 1  # Staging chỉ cần 1 replica (tiết kiệm tài nguyên)
+  replicas: 1  # Staging only needs 1 replica (cost-effective)
   selector:
     matchLabels:
       app: nodejs-web
@@ -27,7 +27,7 @@ spec:
         image: dinhquoccuong286/devops-final-app:IMAGE_TAG_PLACEHOLDER
         ports:
         - containerPort: 3000
-        # Biến môi trường cho S3 Image Upload
+        # Environment variables for S3 Image Upload
         env:
         - name: MONGO_URI
           value: "mongodb://mongodb-service.staging:27017/products_db"
@@ -42,7 +42,7 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
-        # Liveness Probe: K8s restart pod nếu app bị treo
+        # Liveness Probe: K8s restarts the pod if the app becomes unresponsive
         livenessProbe:
           httpGet:
             path: /health

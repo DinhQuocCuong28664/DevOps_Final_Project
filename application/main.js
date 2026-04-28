@@ -13,7 +13,7 @@ const uiRoutes      = require('./routes/uiRoutes');
 const app = express();
 
 // ============================================================
-// Metrics Middleware — đo tất cả HTTP requests (tước các route khác)
+// Metrics Middleware - measures all HTTP requests (before other routes)
 // ============================================================
 app.use(metricsMiddleware);
 
@@ -29,8 +29,8 @@ app.use('/', uiRoutes);
 app.use('/products', productRoutes);
 
 // ============================================================
-// Health Check Endpoint — dùng cho K8s readinessProbe / livenessProbe
-// GET /health → 200 OK nếu app sẵn sàng, 503 nếu DB lỗi
+// Health Check Endpoint - used by K8s readinessProbe / livenessProbe
+// GET /health -> 200 OK if app is ready, 503 if DB error
 // ============================================================
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState;
@@ -59,8 +59,8 @@ app.get('/health', (req, res) => {
 
 // ============================================================
 // Prometheus Metrics Endpoint
-// GET /metrics → trả về tất cả custom metrics ở định dạng text/plain
-// Prometheus sẽ tự scrape endpoint này mỗi 15 giây
+// GET /metrics -> returns all custom metrics in text/plain format
+// Prometheus automatically scrapes this endpoint every 15 seconds
 // ============================================================
 app.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
@@ -70,7 +70,7 @@ app.get('/metrics', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 async function start() {
-  // Chỉ tạo thư mục uploads khi KHÔNG dùng S3 (chế độ dev local)
+  // Only create uploads directory when NOT using S3 (local dev mode)
   if (!process.env.S3_BUCKET_NAME) {
     const uploadsDir = path.join(__dirname, 'public', 'uploads');
     if (!fs.existsSync(uploadsDir)) {

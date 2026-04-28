@@ -1,17 +1,17 @@
 #!/bin/bash
 # ============================================================
 # Auto-Install: Docker + Jenkins + Nginx + Certbot
-# Script này chạy tự động khi EC2 khởi động (user-data)
+# This script runs automatically on EC2 boot (user-data)
 # ============================================================
 
 set -e
 
-# Cập nhật hệ thống
+# Update system packages
 apt-get update -y
 apt-get upgrade -y
 
 # ============================================================
-# 1. Cài đặt Docker
+# 1. Install Docker
 # ============================================================
 apt-get install -y ca-certificates curl gnupg
 install -m 0755 -d /etc/apt/keyrings
@@ -23,16 +23,16 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
 apt-get update -y
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Cho user ubuntu dùng docker không cần sudo
+# Allow ubuntu user to use docker without sudo
 usermod -aG docker ubuntu
 
 # ============================================================
-# 2. Chạy Jenkins bằng Docker
+# 2. Run Jenkins via Docker
 # ============================================================
-# Tạo volume để Jenkins lưu dữ liệu vĩnh viễn
+# Create a persistent volume for Jenkins data
 docker volume create jenkins_home
 
-# Chạy Jenkins container
+# Start Jenkins container
 docker run -d \
   --name jenkins \
   --restart=always \
@@ -43,11 +43,11 @@ docker run -d \
   jenkins/jenkins:lts-jdk17
 
 # ============================================================
-# 3. Cài đặt Nginx (Reverse Proxy)
+# 3. Install Nginx (Reverse Proxy)
 # ============================================================
 apt-get install -y nginx
 
-# Tạo config Nginx proxy cho Jenkins
+# Create Nginx proxy config for Jenkins
 cat > /etc/nginx/sites-available/jenkins <<'NGINX_CONF'
 server {
     listen 80;
@@ -60,36 +60,36 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Cần cho Jenkins WebSocket
+        # Required for Jenkins WebSocket
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Tăng timeout cho các build lâu
+        # Increase timeout for long builds
         proxy_read_timeout 90s;
     }
 }
 NGINX_CONF
 
-# Bật site, tắt default
+# Enable site, disable default
 ln -sf /etc/nginx/sites-available/jenkins /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
 # ============================================================
-# 4. Cài đặt Certbot (SSL/HTTPS tự động)
+# 4. Install Certbot (automatic SSL/HTTPS)
 # ============================================================
 apt-get install -y certbot python3-certbot-nginx
 
-# Lưu ý: Certbot cần chạy THỦ CÔNG sau khi DNS A record đã trỏ đúng
-# Lệnh: sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun
+# Note: Certbot must be run MANUALLY after DNS A record is pointing correctly
+# Command: sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun
 
 # ============================================================
-# 5. Lưu mật khẩu admin ban đầu
+# 5. Save initial admin password info
 # ============================================================
 echo "============================================" >> /home/ubuntu/JENKINS_INFO.txt
 echo "Jenkins Initial Admin Password:" >> /home/ubuntu/JENKINS_INFO.txt
-echo "Chạy lệnh sau để lấy mật khẩu:" >> /home/ubuntu/JENKINS_INFO.txt
+echo "Run the following command to get the password:" >> /home/ubuntu/JENKINS_INFO.txt
 echo "docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword" >> /home/ubuntu/JENKINS_INFO.txt
 echo "============================================" >> /home/ubuntu/JENKINS_INFO.txt
 echo "URL: https://jenkins.moteo.fun" >> /home/ubuntu/JENKINS_INFO.txt

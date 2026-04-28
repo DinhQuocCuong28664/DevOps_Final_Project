@@ -30,3 +30,11 @@ infrastructure/*.tfvars
 Thumbs.db
 .vscode/
 .idea/
+
+# ============================
+# Temp / Utility Scripts (local only)
+# ============================
+.agent/
+_fix_encoding.ps1
+_check_syntax.ps1
+_*.ps1

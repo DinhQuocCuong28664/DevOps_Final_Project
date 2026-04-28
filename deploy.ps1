@@ -1,172 +1,248 @@
+﻿# ============================================================
+# deploy.ps1 - DevOps Final Project - Full End-to-End Deployment
+# ============================================================
+# After this script completes, you only need to:
+#   1. Set DNS records on Hostinger (instructions shown below)
+#   2. Complete Jenkins setup wizard on https://jenkins.moteo.fun
+# ============================================================
+
+# Fix UTF-8 BOM encoding before execution
+if (Test-Path "$PSScriptRoot\.agent\fix_encoding.ps1") {
+    & "$PSScriptRoot\.agent\fix_encoding.ps1" | Out-Null
+}
+
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  DevOps Final Project — Deploy Script" -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  Script tự động hóa toàn bộ quá trình" -ForegroundColor Cyan
-Write-Host "  khởi động hệ thống từ đầu (~30-35 phút)" -ForegroundColor Cyan
+Write-Host "  DevOps Final Project - Full Deploy"        -ForegroundColor Cyan
+Write-Host "  Estimated time: ~30-40 minutes"            -ForegroundColor Cyan
 Write-Host "============================================`n" -ForegroundColor Cyan
 
 # ============================================================
-# BƯỚC 1: Terraform — Tạo VPC + EKS + Jenkins EC2
+# STEP 1: Terraform - Provision AWS Infrastructure
 # ============================================================
-Write-Host "[1/7] Khởi tạo hạ tầng AWS với Terraform..." -ForegroundColor Yellow
-Write-Host "  ⏱️  Sẽ mất khoảng 15-20 phút..." -ForegroundColor Gray
+Write-Host "[1/8] Provisioning AWS infrastructure with Terraform..." -ForegroundColor Yellow
+Write-Host "  This will take approximately 15-20 minutes..." -ForegroundColor Gray
 
 Push-Location -Path "infrastructure"
 terraform init -upgrade
 terraform apply -auto-approve
 Pop-Location
 
-Write-Host "  ✅ Hạ tầng đã được tạo!" -ForegroundColor Green
+Write-Host "  [OK] Infrastructure created!" -ForegroundColor Green
 
-# Lấy Jenkins IP và S3 bucket name từ terraform output
-$jenkinsIp   = terraform -chdir="infrastructure" output -raw jenkins_public_ip 2>$null
-$s3Bucket    = terraform -chdir="infrastructure" output -raw s3_uploads_bucket_name 2>$null
+# Read Terraform outputs
+$jenkinsIp  = terraform -chdir="infrastructure" output -raw jenkins_public_ip   2>$null
+$jenkinsSsh = terraform -chdir="infrastructure" output -raw jenkins_ssh          2>$null
+$s3Bucket   = terraform -chdir="infrastructure" output -raw s3_uploads_bucket_name 2>$null
+$keyFile    = "infrastructure\jenkins-key.pem"
+
 Write-Host ""
 Write-Host "  =============================" -ForegroundColor Magenta
-Write-Host "  Jenkins IP  : $jenkinsIp" -ForegroundColor Magenta
-Write-Host "  S3 Bucket   : $s3Bucket (ap-southeast-2)" -ForegroundColor Magenta
-Write-Host "  → Cần thêm A record 'jenkins' trỏ vào IP này trên Hostinger!" -ForegroundColor Magenta
+Write-Host "  Jenkins IP : $jenkinsIp"       -ForegroundColor Magenta
+Write-Host "  S3 Bucket  : $s3Bucket"        -ForegroundColor Magenta
 Write-Host "  =============================" -ForegroundColor Magenta
 
 # ============================================================
-# BƯỚC 2: Kết nối kubectl vào EKS
+# STEP 2: Connect kubectl to EKS Cluster
 # ============================================================
-Write-Host "`n[2/7] Kết nối kubectl vào EKS Cluster..." -ForegroundColor Yellow
+Write-Host "`n[2/8] Connecting kubectl to EKS Cluster..." -ForegroundColor Yellow
 aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
 
-# Chờ nodes sẵn sàng (polling)
-Write-Host "  Đợi EKS nodes Ready..." -ForegroundColor Cyan
+Write-Host "  Waiting for EKS nodes to be Ready..." -ForegroundColor Cyan
 $maxWait = 300
 $elapsed = 0
 while ($elapsed -lt $maxWait) {
     $readyNodes = kubectl get nodes --no-headers 2>$null | Where-Object { $_ -match " Ready " }
     if (($readyNodes | Measure-Object).Count -ge 2) {
-        Write-Host "  ✅ EKS cluster sẵn sàng! (2 nodes Ready)" -ForegroundColor Green
+        Write-Host "  [OK] EKS cluster ready! (2 nodes)" -ForegroundColor Green
         break
     }
-    Write-Host "  ⏳ Chưa đủ nodes Ready... ($elapsed/$maxWait giây)" -ForegroundColor Cyan
+    Write-Host "  Waiting for nodes... ($elapsed/$maxWait sec)" -ForegroundColor Cyan
     Start-Sleep -Seconds 20
     $elapsed += 20
 }
 kubectl get nodes
 
 # ============================================================
-# BƯỚC 3: Cài đặt NGINX Ingress Controller
+# STEP 3: Install NGINX Ingress Controller
 # ============================================================
-Write-Host "`n[3/7] Cài đặt NGINX Ingress Controller..." -ForegroundColor Yellow
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>$null
-helm repo add jetstack https://charts.jetstack.io 2>$null
+Write-Host "`n[3/8] Installing NGINX Ingress Controller..." -ForegroundColor Yellow
+helm repo add ingress-nginx        https://kubernetes.github.io/ingress-nginx  2>$null
+helm repo add jetstack             https://charts.jetstack.io                   2>$null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>$null
-helm repo add grafana https://grafana.github.io/helm-charts 2>$null
+helm repo add grafana              https://grafana.github.io/helm-charts        2>$null
 helm repo update
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx `
     --namespace ingress-nginx --create-namespace
 
-# Chờ Ingress có EXTERNAL-IP (polling)
-Write-Host "  Đợi LoadBalancer có EXTERNAL-IP..." -ForegroundColor Cyan
+Write-Host "  Waiting for LoadBalancer EXTERNAL-IP..." -ForegroundColor Cyan
+$elbHostname = ""
 $elapsed = 0
 while ($elapsed -lt 180) {
-    $externalIp = kubectl get svc -n ingress-nginx ingress-nginx-controller `
+    $elbHostname = kubectl get svc -n ingress-nginx ingress-nginx-controller `
         -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>$null
-    if ($externalIp) {
-        Write-Host "  ✅ Ingress LoadBalancer sẵn sàng!" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "  =============================" -ForegroundColor Magenta
-        Write-Host "  Ingress ELB: $externalIp" -ForegroundColor Magenta
-        Write-Host "  → Cần thêm CNAME 'www' trỏ vào địa chỉ này trên Hostinger!" -ForegroundColor Magenta
-        Write-Host "  =============================" -ForegroundColor Magenta
+    if ($elbHostname) {
+        Write-Host "  [OK] Ingress ELB ready!" -ForegroundColor Green
         break
     }
-    Write-Host "  ⏳ Đang chờ EXTERNAL-IP... ($elapsed/180 giây)" -ForegroundColor Cyan
+    Write-Host "  Waiting for EXTERNAL-IP... ($elapsed/180 sec)" -ForegroundColor Cyan
     Start-Sleep -Seconds 15
     $elapsed += 15
 }
 
 # ============================================================
-# BƯỚC 4: Cài đặt Cert-Manager (SSL tự động)
+# STEP 4: Install Cert-Manager
 # ============================================================
-Write-Host "`n[4/7] Cài đặt Cert-Manager..." -ForegroundColor Yellow
+Write-Host "`n[4/8] Installing Cert-Manager..." -ForegroundColor Yellow
 helm upgrade --install cert-manager jetstack/cert-manager `
     --namespace cert-manager --create-namespace `
     --set crds.enabled=true
-Write-Host "  ✅ Cert-Manager đã cài xong!" -ForegroundColor Green
+Write-Host "  [OK] Cert-Manager installed!" -ForegroundColor Green
 
 # ============================================================
-# BƯỚC 5: Cài đặt Metrics Server + Monitoring Stack
+# STEP 5: Install Monitoring Stack (Prometheus + Grafana + Loki)
 # ============================================================
-Write-Host "`n[5/7] Cài đặt Metrics Server + Prometheus + Grafana + Loki..." -ForegroundColor Yellow
+Write-Host "`n[5/8] Installing Prometheus + Grafana + Loki..." -ForegroundColor Yellow
 
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
 helm upgrade --install monitoring-stack prometheus-community/kube-prometheus-stack `
     --namespace monitoring --create-namespace
 
-# Cài Loki Stack (Loki + Promtail) — dùng lại Grafana có sẵn
-Write-Host "  Cài đặt Loki Stack (Centralized Logging)..." -ForegroundColor Cyan
 helm upgrade --install loki-stack grafana/loki-stack `
     --namespace monitoring `
     --values kubernetes/loki-values.yaml
 
-Write-Host "  ✅ Monitoring + Logging stack đã cài xong!" -ForegroundColor Green
+Write-Host "  [OK] Monitoring + Logging stack installed!" -ForegroundColor Green
 
-# Lấy mật khẩu Grafana
 $grafanaPass = kubectl --namespace monitoring get secrets monitoring-stack-grafana `
     -o jsonpath="{.data.admin-password}" 2>$null | ForEach-Object {
         [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_))
     }
-Write-Host ""
-Write-Host "  =============================" -ForegroundColor Magenta
-Write-Host "  Grafana URL  : http://localhost:3000 (sau khi port-forward)" -ForegroundColor Magenta
-Write-Host "  Grafana User : admin" -ForegroundColor Magenta
-Write-Host "  Grafana Pass : $grafanaPass" -ForegroundColor Magenta
-Write-Host "  Port-forward : kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80" -ForegroundColor Magenta
-Write-Host "  ————————————————————————" -ForegroundColor Magenta
-Write-Host "  Loki (Logs)  : Đã tích hợp vào Grafana (Data Source: Loki)" -ForegroundColor Magenta
-Write-Host "  LogQL mẫu   : {namespace='production'} |= 'error'" -ForegroundColor Magenta
-Write-Host "  =============================" -ForegroundColor Magenta
 
 # ============================================================
-# BƯỚC 6: Apply K8s manifests (Ingress SSL + Alerting Rules)
+# STEP 6: Apply All Kubernetes Manifests
 # ============================================================
-Write-Host "`n[6/7] Apply Kubernetes manifests..." -ForegroundColor Yellow
+Write-Host "`n[6/8] Applying all Kubernetes manifests..." -ForegroundColor Yellow
+
+# Create namespaces (idempotent)
+kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace staging    --dry-run=client -o yaml | kubectl apply -f -
+Write-Host "  [OK] Namespaces ready (production, staging)" -ForegroundColor Green
+
+# MongoDB
+kubectl apply -f kubernetes/mongodb-pvc.yaml
+kubectl apply -f kubernetes/mongodb-deployment.yaml
+kubectl apply -f kubernetes/mongodb-service.yaml
+Write-Host "  [OK] MongoDB applied" -ForegroundColor Green
+
+# Application (production)
+kubectl apply -f kubernetes/deployment.yaml
+kubectl apply -f kubernetes/service.yaml
+kubectl apply -f kubernetes/hpa.yaml
+Write-Host "  [OK] Application (production) applied" -ForegroundColor Green
+
+# Ingress SSL + Monitoring rules
 kubectl apply -f kubernetes/ingress-ssl.yaml
 kubectl apply -f kubernetes/alerting-rules.yaml
 kubectl apply -f kubernetes/prometheus-scrape.yaml
-Write-Host "  ✅ Ingress SSL, Alerting Rules và Prometheus ServiceMonitor đã được apply!" -ForegroundColor Green
-
-Write-Host "  Đợi SSL certificate được cấp (có thể mất 2-3 phút sau khi DNS trỏ đúng)..." -ForegroundColor Cyan
-Write-Host "  Kiểm tra: kubectl get certificate -n production" -ForegroundColor Gray
+Write-Host "  [OK] Ingress, Alerting, ServiceMonitor applied" -ForegroundColor Green
 
 # ============================================================
-# BƯỚC 7: Tóm tắt và việc còn lại
+# STEP 7: DNS - Show instructions and wait for confirmation
 # ============================================================
-Write-Host "`n[7/7] Kiểm tra tổng thể..." -ForegroundColor Yellow
+Write-Host "`n[7/8] DNS Configuration Required" -ForegroundColor Red
 Write-Host ""
-kubectl get nodes
+Write-Host "  ============================================" -ForegroundColor Red
+Write-Host "  ACTION REQUIRED: Set DNS records on Hostinger" -ForegroundColor Red
+Write-Host "  Go to: https://hpanel.hostinger.com -> Domains -> moteo.fun -> DNS Records" -ForegroundColor Red
 Write-Host ""
-kubectl get pods -n ingress-nginx
+Write-Host "  1. CNAME  www      -> $elbHostname" -ForegroundColor Yellow
+Write-Host "  2. A      jenkins  -> $jenkinsIp"   -ForegroundColor Yellow
 Write-Host ""
-kubectl get pods -n cert-manager
+Write-Host "  (Delete old conflicting records first if any)" -ForegroundColor Gray
+Write-Host "  ============================================" -ForegroundColor Red
 Write-Host ""
-kubectl get pods -n monitoring
 
-Write-Host "`n============================================" -ForegroundColor Green
-Write-Host "  ✅ Deploy hoàn tất!" -ForegroundColor Green
+# Wait for user to confirm DNS is set
+Read-Host "  Press ENTER after you have set both DNS records..."
+
+# Poll until jenkins.moteo.fun resolves to the correct IP
+Write-Host "  Waiting for jenkins.moteo.fun DNS to propagate..." -ForegroundColor Cyan
+$dnsOk = $false
+$elapsed = 0
+while ($elapsed -lt 300) {
+    try {
+        $resolved = [System.Net.Dns]::GetHostAddresses("jenkins.moteo.fun") | Select-Object -First 1
+        if ($resolved.IPAddressToString -eq $jenkinsIp) {
+            Write-Host "  [OK] DNS propagated! jenkins.moteo.fun -> $jenkinsIp" -ForegroundColor Green
+            $dnsOk = $true
+            break
+        }
+    } catch {}
+    Write-Host "  DNS not ready yet... ($elapsed/300 sec)" -ForegroundColor Cyan
+    Start-Sleep -Seconds 15
+    $elapsed += 15
+}
+
+# ============================================================
+# STEP 8: Enable HTTPS on Jenkins via Certbot (auto SSH)
+# ============================================================
+Write-Host "`n[8/8] Setting up HTTPS for Jenkins..." -ForegroundColor Yellow
+
+if ($dnsOk -and (Test-Path $keyFile)) {
+    Write-Host "  SSH-ing into Jenkins to run Certbot..." -ForegroundColor Cyan
+
+    # Wait for Jenkins container to be fully up before requesting cert
+    Start-Sleep -Seconds 15
+
+    $certbotCmd = "sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun"
+    ssh -i $keyFile -o StrictHostKeyChecking=no ubuntu@$jenkinsIp $certbotCmd
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] SSL certificate issued! Jenkins HTTPS is ready." -ForegroundColor Green
+    } else {
+        Write-Host "  [WARN] Certbot failed. Run manually on Jenkins server:" -ForegroundColor Yellow
+        Write-Host "    ssh -i $keyFile ubuntu@$jenkinsIp" -ForegroundColor Gray
+        Write-Host "    sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun" -ForegroundColor Gray
+    }
+} elseif (-not (Test-Path $keyFile)) {
+    Write-Host "  [WARN] Key file not found at $keyFile - run Certbot manually." -ForegroundColor Yellow
+} else {
+    Write-Host "  [WARN] DNS not fully propagated - run Certbot manually after DNS is ready:" -ForegroundColor Yellow
+    Write-Host "    ssh -i $keyFile ubuntu@$jenkinsIp" -ForegroundColor Gray
+    Write-Host "    sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun" -ForegroundColor Gray
+}
+
+# ============================================================
+# FINAL SUMMARY
+# ============================================================
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Green
+Write-Host "  [OK] DEPLOYMENT COMPLETE!"                -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "⚠️  VIỆC CÒN LẠI (làm thủ công trên Hostinger):" -ForegroundColor Red
-Write-Host "   1. Vào: https://hpanel.hostinger.com → Domains → moteo.fun → DNS Records" -ForegroundColor Red
-Write-Host "   2. Thêm/Sửa CNAME 'www'    → trỏ vào Ingress ELB ở trên" -ForegroundColor Red
-Write-Host "   3. Thêm/Sửa A record 'jenkins' → trỏ vào Jenkins IP ở trên" -ForegroundColor Red
-Write-Host "   4. Đợi DNS propagate (1-5 phút)" -ForegroundColor Red
+Write-Host "  --- Infrastructure ---" -ForegroundColor Cyan
+kubectl get nodes
 Write-Host ""
-Write-Host "   Sau khi DNS xong — SSH vào Jenkins để setup:" -ForegroundColor Yellow
-$sshCmd = terraform -chdir="infrastructure" output -raw jenkins_ssh 2>$null
-Write-Host "   $sshCmd" -ForegroundColor Yellow
+Write-Host "  --- Pods (ingress-nginx) ---" -ForegroundColor Cyan
+kubectl get pods -n ingress-nginx
 Write-Host ""
-Write-Host "   Truy cập hệ thống:" -ForegroundColor Green
-Write-Host "   🌐 App     : https://www.moteo.fun" -ForegroundColor Green
-Write-Host "   🔧 Jenkins : https://jenkins.moteo.fun" -ForegroundColor Green
-Write-Host "   📊 Grafana : kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80" -ForegroundColor Green
-Write-Host "   📄 Loki Logs: Grafana → Explore → Data Source: Loki → {namespace=\"production\"}" -ForegroundColor Green
+Write-Host "  --- Pods (production) ---" -ForegroundColor Cyan
+kubectl get pods -n production
+Write-Host ""
+Write-Host "  --- Pods (monitoring) ---" -ForegroundColor Cyan
+kubectl get pods -n monitoring
+Write-Host ""
+Write-Host "  ============================================" -ForegroundColor Green
+Write-Host "  Access the system:" -ForegroundColor Green
+Write-Host "  [App]     https://www.moteo.fun" -ForegroundColor Green
+Write-Host "  [Jenkins] https://jenkins.moteo.fun" -ForegroundColor Green
+Write-Host "  [Grafana] Run: kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80" -ForegroundColor Green
+Write-Host "            Then open: http://localhost:3000 (admin / $grafanaPass)" -ForegroundColor Green
+Write-Host "  [Loki]    Grafana -> Explore -> Data Source: Loki -> {namespace='production'}" -ForegroundColor Green
+Write-Host ""
+Write-Host "  --- Jenkins Setup ---" -ForegroundColor Yellow
+Write-Host "  SSH:      ssh -i $keyFile ubuntu@$jenkinsIp" -ForegroundColor Yellow
+Write-Host "  Password: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword" -ForegroundColor Yellow
+Write-Host "  ============================================" -ForegroundColor Green

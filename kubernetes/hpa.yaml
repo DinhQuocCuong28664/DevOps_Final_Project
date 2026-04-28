@@ -16,10 +16,10 @@ spec:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 60   # Scale thêm pod khi CPU vượt 60%
+        averageUtilization: 60   # Scale up when CPU exceeds 60%
   - type: Resource
     resource:
       name: memory
       target:
         type: Utilization
-        averageUtilization: 70   # Scale thêm pod khi RAM vượt 70%
+        averageUtilization: 70   # Scale up when RAM exceeds 70%

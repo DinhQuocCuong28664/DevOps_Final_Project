@@ -4,13 +4,13 @@ metadata:
   name: devops-final-alerts
   namespace: monitoring
   labels:
-    release: monitoring-stack  # BẮT BUỘC: Phải khớp với tên Helm release
+    release: monitoring-stack  # REQUIRED: Must match the Helm release name
 spec:
   groups:
   - name: devops-final.rules
     rules:
     # =============================================
-    # Alert 1: Pod bị crash liên tục (CrashLoopBackOff)
+    # Alert 1: Pod is crash-looping (CrashLoopBackOff)
     # =============================================
     - alert: PodCrashLooping
       expr: rate(kube_pod_container_status_restarts_total{namespace="production"}[5m]) > 0
@@ -18,11 +18,11 @@ spec:
       labels:
         severity: critical
       annotations:
-        summary: "Pod {{ $labels.pod }} đang bị crash liên tục!"
-        description: "Pod {{ $labels.pod }} trong namespace {{ $labels.namespace }} đã restart hơn 0 lần trong 5 phút qua."
+        summary: "Pod {{ $labels.pod }} is crash-looping!"
+        description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted more than 0 times in the last 5 minutes."
 
     # =============================================
-    # Alert 2: CPU sử dụng quá cao (>80%)
+    # Alert 2: CPU usage too high (>80%)
     # =============================================
     - alert: HighCPUUsage
       expr: |
@@ -34,11 +34,11 @@ spec:
       labels:
         severity: warning
       annotations:
-        summary: "Pod {{ $labels.pod }} đang sử dụng >80% CPU!"
-        description: "CPU usage của pod {{ $labels.pod }} đã vượt 80% trong 3 phút liên tục."
+        summary: "Pod {{ $labels.pod }} is using >80% CPU!"
+        description: "CPU usage for pod {{ $labels.pod }} has exceeded 80% for 3 consecutive minutes."
 
     # =============================================
-    # Alert 3: RAM sử dụng quá cao (>85%)
+    # Alert 3: Memory usage too high (>85%)
     # =============================================
     - alert: HighMemoryUsage
       expr: |
@@ -50,11 +50,11 @@ spec:
       labels:
         severity: warning
       annotations:
-        summary: "Pod {{ $labels.pod }} đang sử dụng >85% RAM!"
-        description: "Memory usage của pod {{ $labels.pod }} đã vượt 85% trong 3 phút liên tục."
+        summary: "Pod {{ $labels.pod }} is using >85% RAM!"
+        description: "Memory usage for pod {{ $labels.pod }} has exceeded 85% for 3 consecutive minutes."
 
     # =============================================
-    # Alert 4: Số pod ready ít hơn mong muốn
+    # Alert 4: Ready pods fewer than desired replicas
     # =============================================
     - alert: DeploymentReplicasMismatch
       expr: kube_deployment_status_replicas_available{namespace="production", deployment="devops-final-deployment"} < kube_deployment_spec_replicas{namespace="production", deployment="devops-final-deployment"}
@@ -62,5 +62,5 @@ spec:
       labels:
         severity: critical
       annotations:
-        summary: "Deployment devops-final-deployment thiếu pod!"
-        description: "Số pod đang chạy ({{ $value }}) ít hơn số pod mong muốn. Có thể hệ thống đang gặp sự cố."
+        summary: "Deployment devops-final-deployment has missing pods!"
+        description: "The number of running pods ({{ $value }}) is less than the desired replica count. The system may be experiencing issues."

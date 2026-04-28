@@ -9,12 +9,12 @@ const { S3Client } = require('@aws-sdk/client-s3');
 const multerS3 = require('multer-s3');
 
 // ============================================================
-// Cấu hình Upload: Ưu tiên S3 (production), fallback local (dev)
+// Upload Config: S3 in production, local disk fallback for dev
 // ============================================================
 let upload;
 
 if (process.env.S3_BUCKET_NAME) {
-  // --- PRODUCTION: Upload thẳng lên Amazon S3 ---
+  // --- PRODUCTION: Upload directly to Amazon S3 ---
   const s3 = new S3Client({ region: process.env.AWS_REGION || 'ap-southeast-2' });
 
   const s3Storage = multerS3({
@@ -30,7 +30,7 @@ if (process.env.S3_BUCKET_NAME) {
   upload = multer({ storage: s3Storage });
   console.log(`[Upload] Using S3 bucket: ${process.env.S3_BUCKET_NAME}`);
 } else {
-  // --- LOCAL DEV: Lưu vào disk (chỉ dùng khi phát triển) ---
+  // --- LOCAL DEV: Save to disk (only for development) ---
   const localStorage = multer.diskStorage({
     destination: function (req, file, cb) {
       cb(null, path.join(__dirname, '..', 'public', 'uploads'));

@@ -1,37 +1,37 @@
 const https = require('https');
 
 const URL = 'https://www.moteo.fun/';
-const CONCURRENCY = 200; // Số lượng khách hàng ảo cùng lúc truy cập liên tục
+const CONCURRENCY = 200; // Number of virtual clients sending requests concurrently
 let requestCount = 0;
 
-console.log(`🚀 Bắt đầu cuộc tấn công tổng lực (Stress Test) vào: ${URL}`);
-console.log(`🤖 Mức độ: ${CONCURRENCY} truy cập ảo chạy cùng một thời điểm`);
-console.log(`(Nhấn Ctrl+C bất cứ lúc nào để dừng lại)`);
+console.log(`[STRESS TEST] Starting full-scale stress test on: ${URL}`);
+console.log(`[CONFIG] Concurrency level: ${CONCURRENCY} virtual clients running simultaneously`);
+console.log(`(Press Ctrl+C at any time to stop)`);
 console.log('------------------------------------------------------------');
 
 function sendRequest() {
     https.get(URL, (res) => {
         requestCount++;
         
-        // Cứ mỗi 1000 requests thì báo cáo tiến độ 1 lần
+        // Report progress every 1000 requests
         if (requestCount % 1000 === 0) {
-            console.log(`🔥 Đã oanh tạc: ${requestCount} lượt requests...`);
+            console.log(`[PROGRESS] Sent ${requestCount} requests so far...`);
         }
         
-        // Nhận dữ liệu (để Node dọn rác nhẹ nhàng hơn)
+        // Consume response data (helps Node.js GC)
         res.on('data', () => {}); 
         res.on('end', () => {
-            // Ngay khi kết nối hoàn thành thì lại tiếp tục bắn request mới luôn (loop vô tận)
+            // Immediately send another request when the previous one completes (infinite loop)
             sendRequest();
         });
     }).on('error', (err) => {
-        console.error(`❌ Request thất bại (${err.message})... Vẫn tiếp tục tấn công!`);
-        // Kể cả có lỗi chập chờn cũng phải bắn tiếp
+        console.error(`[ERROR] Request failed (${err.message})... Continuing stress test!`);
+        // Keep going even if there are intermittent errors
         setTimeout(sendRequest, 100); 
     });
 }
 
-// Khởi chạy hàng loạt khách ảo
+// Launch all virtual clients
 for (let i = 0; i < CONCURRENCY; i++) {
     sendRequest();
 }
