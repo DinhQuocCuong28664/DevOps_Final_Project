@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-    # Chỉ chạy pipeline khi code hoặc K8s manifests thay đổi
+    # Only run pipeline when application code or K8s manifests change
     paths:
       - 'application/**'
       - 'kubernetes/**'
@@ -18,48 +18,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Lấy mã nguồn (Checkout Code)
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Thiết lập môi trường Node.js
+      - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: './application/package-lock.json'
 
-      - name: Cài đặt thư viện (Install Dependencies)
+      - name: Install Dependencies
         working-directory: ./application
         run: npm ci
 
-      # Kiểm tra chất lượng code bằng ESLint (Bắt buộc theo Rubric)
-      - name: Kiểm tra chất lượng code (Linting)
+      # Code quality check via ESLint
+      - name: Lint Code
         working-directory: ./application
         run: npm run lint
 
-      # Quét bảo mật DevSecOps bằng Trivy (Bắt buộc theo Rubric)
-      - name: Quét bảo mật mã nguồn bằng Trivy
+      # Security scan via Trivy (DevSecOps)
+      - name: Trivy Security Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: './application'
           format: 'table'
-          exit-code: '1' # Sẽ báo đỏ (fail) pipeline nếu phát hiện lỗi
+          exit-code: '1'
           ignore-unfixed: true
-          severity: 'CRITICAL,HIGH' # Chỉ bắt lỗi nghiêm trọng
+          severity: 'CRITICAL,HIGH'
 
-      - name: Đăng nhập vào Docker Hub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Lấy mã băm (commit hash) của Git để làm version tag (Không dùng tag 'latest')
-      - name: Tạo Version Tag cho Image
+      # Use Git commit SHA as image tag (never use 'latest')
+      - name: Generate Image Tag
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build và Push Docker Image lên Docker Hub
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: ./application
@@ -67,119 +67,116 @@ jobs:
           tags: dinhquoccuong286/devops-final-app:${{ steps.vars.outputs.sha_short }}
 
   # ============================================================
-  # JOB 2: CD - Deploy lên STAGING (tự động sau khi CI pass)
+  # JOB 2: CD - Deploy to STAGING (auto, after CI passes)
   # ============================================================
   deploy-staging:
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: staging  # GitHub Environment: staging
+    environment: staging
 
     steps:
-      - name: Lấy mã nguồn
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Cấu hình AWS Credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
-      - name: Lấy file cấu hình Kubeconfig của EKS
+      - name: Connect kubectl to EKS
         run: aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
 
-      - name: Lấy Version Tag hiện tại
+      - name: Generate Image Tag
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Triển khai lên Staging
+      - name: Deploy to Staging
         run: |
-          # Tạo namespace staging nếu chưa có
-          kubectl apply -f kubernetes/staging/namespace.yaml
+          # Create staging namespace if not exists (idempotent)
+          kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
 
-          # Deploy MongoDB trước (database phải sẵn sàng trước app)
-          kubectl apply -f kubernetes/mongodb-pvc.yaml -n staging
-          kubectl apply -f kubernetes/mongodb-deployment.yaml -n staging
-          kubectl apply -f kubernetes/mongodb-service.yaml -n staging
+          # Note: Staging reuses production MongoDB (cross-namespace DNS)
+          # mongodb-service.production.svc.cluster.local
 
-          # Thay thế placeholder bằng image tag mới
+          # Replace image tag placeholder with current commit SHA
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/staging/deployment.yaml
 
-          # Deploy app lên staging
+          # Deploy staging app
           kubectl apply -f kubernetes/staging/deployment.yaml
           kubectl apply -f kubernetes/staging/service.yaml
 
-      - name: Kiểm tra Staging đã sẵn sàng
+      - name: Wait for Staging Rollout
         run: |
-          echo "⏳ Đang chờ Staging deployment ready..."
+          echo "Waiting for staging deployment to be ready..."
           kubectl rollout status deployment/devops-final-deployment -n staging --timeout=120s
-          echo "✅ Staging deployment ready!"
+          echo "[OK] Staging deployment ready!"
 
   # ============================================================
-  # JOB 3: CD - Deploy lên PRODUCTION (cần Manual Approval)
+  # JOB 3: CD - Deploy to PRODUCTION (requires Manual Approval)
   # ============================================================
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
-    environment: production  # GitHub Environment: production (cần approve thủ công)
+    environment: production  # GitHub Environment with required reviewer
 
     steps:
-      - name: Lấy mã nguồn
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Cấu hình AWS Credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-2
 
-      - name: Lấy file cấu hình Kubeconfig của EKS
+      - name: Connect kubectl to EKS
         run: aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
 
-      - name: Lấy Version Tag hiện tại
+      - name: Generate Image Tag
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Triển khai lên Production
+      - name: Deploy to Production
         run: |
-          # Tạo namespace production nếu chưa có
-          kubectl apply -f kubernetes/production/namespace.yaml
+          # Create production namespace if not exists (idempotent)
+          kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
 
-          # Deploy MongoDB trước (database phải sẵn sàng trước app)
+          # Ensure MongoDB is deployed (idempotent)
           kubectl apply -f kubernetes/mongodb-pvc.yaml
           kubectl apply -f kubernetes/mongodb-deployment.yaml
           kubectl apply -f kubernetes/mongodb-service.yaml
 
-          # Thay thế placeholder bằng image tag mới
+          # Replace image tag placeholder with current commit SHA
           sed -i "s/IMAGE_TAG_PLACEHOLDER/${{ steps.vars.outputs.sha_short }}/g" kubernetes/deployment.yaml
 
-          # Deploy app lên production
+          # Deploy production app
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/service.yaml
           kubectl apply -f kubernetes/hpa.yaml
 
       # ============================================================
-      # AUTOMATED ROLLBACK: Nếu health check fail → tự động rollback
+      # AUTOMATED ROLLBACK: if health check fails, auto-rollback
       # ============================================================
-      - name: Health Check và Auto-Rollback
+      - name: Health Check and Auto-Rollback
         run: |
-          echo "⏳ Đang kiểm tra Production deployment..."
+          echo "Waiting for production deployment to complete..."
 
-          # Chờ deployment hoàn thành (timeout 120 giây)
           if kubectl rollout status deployment/devops-final-deployment -n production --timeout=120s; then
-            echo "✅ Production deployment thành công!"
+            echo "[OK] Production deployment successful!"
           else
-            echo "❌ Production deployment THẤT BẠI! Đang rollback..."
+            echo "[FAIL] Production deployment failed! Rolling back..."
 
-            # Tự động rollback về phiên bản trước
+            # Auto-rollback to previous version
             kubectl rollout undo deployment/devops-final-deployment -n production
 
-            # Chờ rollback hoàn thành
+            # Wait for rollback to complete
             kubectl rollout status deployment/devops-final-deployment -n production --timeout=60s
 
-            echo "🔄 Đã rollback thành công về phiên bản trước!"
+            echo "[OK] Rollback to previous version completed."
 
-            # Fail pipeline để thông báo lỗi
+            # Fail the pipeline to trigger notification
             exit 1
           fi

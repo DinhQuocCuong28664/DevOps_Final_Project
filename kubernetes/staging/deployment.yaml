@@ -30,7 +30,7 @@ spec:
         # Environment variables for S3 Image Upload
         env:
         - name: MONGO_URI
-          value: "mongodb://mongodb-service.staging:27017/products_db"
+          value: "mongodb://mongodb-service.production.svc.cluster.local:27017/products_db_staging"
         - name: S3_BUCKET_NAME
           value: "devops-final-uploads-dqc28664"
         - name: AWS_REGION
