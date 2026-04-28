@@ -24,6 +24,20 @@ helm uninstall cert-manager     -n cert-manager  --ignore-not-found
 helm uninstall loki-stack       -n monitoring    --ignore-not-found
 helm uninstall monitoring-stack -n monitoring    --ignore-not-found
 
+# Wait for AWS Load Balancer to be fully released before Terraform destroy.
+# helm uninstall returns immediately but AWS needs ~60-90s to delete the ELB
+# and release ENIs from subnets. Without this wait, terraform destroy fails
+# with DependencyViolation on subnet and security group deletion.
+Write-Host "  Waiting 90s for AWS Load Balancer to be fully released..." -ForegroundColor Cyan
+Write-Host "  (This prevents DependencyViolation errors in terraform destroy)" -ForegroundColor Gray
+$elapsed = 0
+while ($elapsed -lt 90) {
+    Start-Sleep -Seconds 10
+    $elapsed += 10
+    Write-Host "  Waiting... ($elapsed/90 sec)" -ForegroundColor Gray
+}
+Write-Host "  [OK] Load Balancer should be released now." -ForegroundColor Green
+
 # ============================================================
 # STEP 2: Delete Kubernetes Resources
 # ============================================================
