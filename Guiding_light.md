@@ -1,279 +1,223 @@
-# 🔦 GUIDING LIGHT — Hướng dẫn Khôi phục Toàn bộ Hệ thống
+# GUIDING LIGHT - System Deploy & Destroy Guide
 
-> File này giúp bạn khôi phục nguyên trạng hệ thống DevOps Final Project
-> từ khi `terraform apply` đến khi `terraform destroy`.
-> Mỗi khi bật lại hệ thống, chỉ cần làm theo từng bước dưới đây.
-
----
-
-## ⚡ PHẦN 1: Khởi tạo hạ tầng (Terraform)
-
-### Bước 1.1: Khởi tạo Terraform
-```bash
-cd infrastructure
-terraform init
-terraform apply -auto-approve
-```
-> ⏱️ Chờ khoảng **15–20 phút** để AWS tạo VPC + EKS + Jenkins EC2.
-
-### Bước 1.2: Ghi lại thông tin quan trọng
-Sau khi apply xong, Terraform sẽ hiện các output:
-```
-jenkins_public_ip       = "x.x.x.x"        ← IP Jenkins (dùng cho DNS)
-jenkins_ssh             = "ssh ubuntu@..."  ← Lệnh SSH vào Jenkins
-jenkins_url             = "https://jenkins.moteo.fun"
-s3_uploads_bucket_name  = "devops-final-uploads-dqc28664"  ← S3 bucket cho image uploads
-```
-**Lưu lại IP này!** Bạn sẽ cần nó cho bước DNS.
-> S3 bucket đã được cấu hình tên cố định, không cần thay đổi gì trong `deployment.yaml`.
-
-### Bước 1.3: Kết nối kubectl vào EKS Cluster mới
-```bash
-aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster
-```
-Kiểm tra kết nối:
-```bash
-kubectl get nodes
-# Phải thấy 2 nodes ở trạng thái Ready
-```
+> This file helps you bring the DevOps Final Project up and down.
+> The system is now fully automated - just run deploy.ps1 or destroy.ps1.
 
 ---
 
-## 🌐 PHẦN 2: Cài đặt Ingress NGINX (HTTPS Controller)
+## DEPLOY (Bring Up Everything)
 
-### Bước 2.1: Thêm Helm repo và cài đặt
-```bash
-helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-helm repo update
-helm install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+### One Command - Full Automation:
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\deploy.ps1"
 ```
 
-### Bước 2.2: Lấy địa chỉ Load Balancer mới
-```bash
-kubectl get svc -n ingress-nginx ingress-nginx-controller
-```
-Copy giá trị cột **EXTERNAL-IP** (dạng `xxxxx.elb.ap-southeast-2.amazonaws.com`).
-> ⚠️ Nếu thấy `<pending>`, đợi 1-2 phút rồi chạy lại.
+**What it does automatically (8 steps, ~30-40 min):**
+1. `terraform apply` - Creates VPC, EKS cluster, Jenkins EC2, S3 bucket
+2. Connects kubectl to EKS, waits for nodes to be Ready
+3. Installs NGINX Ingress Controller via Helm, waits for ELB
+4. Installs Cert-Manager via Helm
+5. Installs Prometheus + Grafana + Loki via Helm
+6. Creates namespaces (production, staging) + applies all K8s manifests:
+   - MongoDB (PVC + Deployment + Service)
+   - App (Deployment + Service + HPA)
+   - Ingress SSL + Alerting Rules + ServiceMonitor
+7. **PAUSES** - shows DNS records to set on Hostinger, waits for Enter
+8. After DNS confirmed - SSH into Jenkins and runs Certbot for HTTPS
+
+**You only need to do manually:**
+1. Set DNS records when script pauses (see screen for exact values):
+   - `CNAME www` -> ELB hostname (shown on screen)
+   - `A jenkins` -> Jenkins IP (shown on screen)
+2. Complete Jenkins setup wizard at https://jenkins.moteo.fun
 
 ---
 
-## 🔒 PHẦN 3: Cài đặt Cert-Manager (SSL/HTTPS tự động)
+## MANUAL STEPS (After deploy.ps1 finishes)
 
-```bash
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set crds.enabled=true
-```
+### Jenkins Setup (first time only):
+1. Go to https://jenkins.moteo.fun
+2. Get initial password:
+   ```powershell
+   ssh -i infrastructure\jenkins-key.pem ubuntu@<JENKINS_IP>
+   docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+   ```
+3. Install suggested plugins
+4. Create admin user
+5. Create Pipeline Job:
+   - Dashboard -> New Item -> name: `devops-final` -> Pipeline -> OK
+   - Pipeline -> Pipeline script from SCM -> Git
+   - URL: `https://github.com/DinhQuocCuong28664/DevOps_Final_Project.git`
+   - Branch: `*/main`
+   - Save -> Build Now
 
----
-
-## 📊 PHẦN 4: Cài đặt Metrics & Monitoring
-
-### 4.1: Cài đặt Kubernetes Metrics Server (sửa lỗi HPA báo `<unknown>`)
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-```
-
-### 4.2: Cài đặt Prometheus + Grafana
-```bash
-helm install monitoring-stack prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
-```
-
-### Xem mật khẩu Grafana:
-```bash
-kubectl --namespace monitoring get secrets monitoring-stack-grafana -o jsonpath="{.data.admin-password}" | base64 -d ; echo
-```
-- **Username:** `admin`
-- **Password:** (lệnh trên sẽ hiện)
-
-### Mở Grafana dashboard:
-```bash
+### Grafana Access:
+```powershell
 kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80
 ```
-Truy cập: `http://localhost:3000`
+Open: http://localhost:3000
+
+Get password:
+```powershell
+kubectl --namespace monitoring get secrets monitoring-stack-grafana `
+  -o jsonpath="{.data.admin-password}" | `
+  ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
+```
+Username: `admin`
 
 ---
 
-## 📋 PHẦN 5: Apply các file K8s (Ingress SSL + Alerting Rules)
+## VERIFY (Check Everything is Running)
 
-```bash
-kubectl apply -f kubernetes/ingress-ssl.yaml
-kubectl apply -f kubernetes/alerting-rules.yaml
-```
-Kiểm tra chứng chỉ SSL đã được cấp:
-```bash
+```powershell
+# Nodes
+kubectl get nodes
+
+# All pods
+kubectl get pods -n production
+kubectl get pods -n staging
+kubectl get pods -n ingress-nginx
+kubectl get pods -n monitoring
+
+# SSL Certificate (wait 2-3 min after DNS is set)
 kubectl get certificate -n production
-# Chờ 1-2 phút, trạng thái phải là "True" ở cột READY
+# READY must be True
+
+# HPA
+kubectl get hpa -n production
+
+# Alerting rules
+kubectl get prometheusrule -n monitoring
+```
+
+Access:
+- App:     https://www.moteo.fun
+- Jenkins: https://jenkins.moteo.fun
+- Grafana: http://localhost:3000 (after port-forward)
+
+---
+
+## HPA DEMO (Stress Test)
+
+Open 2 terminals:
+
+**Terminal 1 - Stress test:**
+```powershell
+node stress-test.js 200 https://www.moteo.fun
+```
+Output every 5 seconds: `[Stats] Total: ... RPS: ... Avg latency: ... Errors: ...`
+
+**Terminal 2 - Watch HPA scale:**
+```powershell
+kubectl get hpa -n production -w
+# Watch pods scale from 2 up to 5
+```
+
+**Terminal 3 - Watch pods:**
+```powershell
+kubectl get pods -n production -w
 ```
 
 ---
 
-## 🌍 PHẦN 6: Cập nhật DNS trên Hostinger
+## FAILURE SIMULATION DEMO (Self-Healing)
 
-### 6.1: Subdomain `www` → EKS App
-1. Đăng nhập [Hostinger](https://hpanel.hostinger.com/)
-2. Vào **Domains** → `moteo.fun` → **DNS / Nameservers** → **DNS Records**
-3. **Sửa** (hoặc tạo mới) bản ghi CNAME cho `www`:
-   | Type | Name | Target (Points to) | TTL |
-   |------|------|-------------------|-----|
-   | **CNAME** | `www` | `<EXTERNAL-IP từ Bước 2.2>` | 300 |
+```powershell
+# 1. Show current pods (2 running)
+kubectl get pods -n production
 
-### 6.2: Subdomain `jenkins` → Jenkins EC2
-4. **Thêm** bản ghi A mới:
-   | Type | Name | Target (Points to) | TTL |
-   |------|------|-------------------|-----|
-   | **A** | `jenkins` | `<IP từ Bước 1.2>` | 300 |
+# 2. Delete one pod
+kubectl delete pod <pod-name> -n production
 
-> ⏱️ DNS cần 1–5 phút để cập nhật.
+# 3. Watch it auto-recreate within 5 seconds
+kubectl get pods -n production -w
+```
+
+Alertmanager fires `DeploymentReplicasMismatch` during the brief downtime.
 
 ---
 
-## 🔧 PHẦN 7: Setup Jenkins (Chỉ cần làm lần đầu tiên)
+## DESTROY (Tear Down Everything)
 
-### 7.1: SSH vào Jenkins EC2
-```bash
-cd infrastructure
-ssh -i jenkins-key.pem ubuntu@<IP_JENKINS>
-# Gõ "yes" nếu được hỏi
+### One Command:
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\destroy.ps1"
 ```
 
-### 7.2: Lấy mật khẩu admin Jenkins
-```bash
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+**What it does automatically:**
+1. Helm uninstall (ingress-nginx, cert-manager, loki-stack, monitoring-stack)
+2. Waits 90 seconds for AWS Load Balancer to be fully released (prevents DependencyViolation)
+3. Deletes all K8s resources (ingress, app, mongodb, HPA)
+4. Deletes namespaces (production, staging, ingress-nginx, cert-manager, monitoring)
+5. `terraform destroy` - removes all AWS resources (~10-15 min)
+
+**After destroy, manually:**
+- Go to Hostinger DNS -> Remove CNAME `www` and A `jenkins` records
+
+---
+
+## TROUBLESHOOTING
+
+### PVC stuck in Pending:
+```powershell
+kubectl get pvc -n production
+kubectl describe pvc mongodb-pvc -n production
+```
+If StorageClass issue: check `kubectl get storageclass` - must have `gp2`.
+
+### EBS CSI Driver CrashLoop:
+```powershell
+kubectl get pods -n kube-system | findstr ebs
+```
+IAM policy may be missing. Run:
+```powershell
+aws iam attach-role-policy `
+  --role-name <node-group-role-name> `
+  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+kubectl rollout restart deployment/ebs-csi-controller -n kube-system
+```
+Note: eks.tf already includes this - only needed if deploying to existing cluster.
+
+### App shows "Source: in memory" (not connected to MongoDB):
+```powershell
+kubectl get pods -n production         # Check mongodb pod is Running
+kubectl get pvc -n production          # Check PVC is Bound
+kubectl rollout restart deployment/devops-final-deployment -n production
 ```
 
-### 7.3: Cài SSL cho Jenkins
-```bash
+### Terraform destroy leaves orphaned subnet/SG:
+```powershell
+# Find and delete orphaned ENIs
+aws ec2 describe-network-interfaces `
+  --filters "Name=subnet-id,Values=<subnet-id>" `
+  --query "NetworkInterfaces[*].NetworkInterfaceId" --output text
+
+aws ec2 delete-network-interface --network-interface-id <eni-id>
+aws ec2 delete-subnet --subnet-id <subnet-id>
+aws ec2 delete-security-group --group-id <sg-id>
+```
+
+### Grafana password (PowerShell):
+```powershell
+kubectl --namespace monitoring get secrets monitoring-stack-grafana `
+  -o jsonpath="{.data.admin-password}" | `
+  ForEach-Object { [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($_)) }
+```
+
+### Jenkins HTTPS (manual certbot):
+```powershell
+ssh -i infrastructure\jenkins-key.pem ubuntu@<JENKINS_IP>
 sudo certbot --nginx -d jenkins.moteo.fun --non-interactive --agree-tos -m admin@moteo.fun
 ```
 
-### 7.4: Truy cập Jenkins
-- URL: **https://jenkins.moteo.fun**
-- Chọn **Install suggested plugins**
-- Tạo Admin User
-- Cài thêm plugin: **Docker Pipeline** (Manage Jenkins → Plugins → Available)
-
-### 7.5: Tạo Pipeline Job
-1. Dashboard → **New Item** → tên `DevOps-Final-CI` → chọn **Pipeline** → OK
-2. Kéo xuống phần **Pipeline**, chọn `Pipeline script from SCM`
-3. SCM: `Git`
-4. Repository URL: `https://github.com/DinhQuocCuong28664/DevOps_Final_Project.git`
-5. Branch: `*/main`
-6. **Save** → **Build Now**
-
 ---
 
-## ✅ PHẦN 8: Kiểm tra tất cả đã hoạt động
+## VERIFY AWS CLEAN (No Leftover Charges)
 
-```bash
-# 1. Kiểm tra pods production
-kubectl get pods -n production
-# Phải thấy 2 pods Running
-
-# 2. Kiểm tra pods staging
-kubectl get pods -n staging
-# Phải thấy 1 pod Running
-
-# 3. Kiểm tra services
-kubectl get svc -A
-# Phải thấy ClusterIP ở production + LoadBalancer ở ingress-nginx
-
-# 4. Kiểm tra SSL certificate
-kubectl get certificate -n production
-# READY phải là True
-
-# 5. Kiểm tra alerting rules
-kubectl get prometheusrule -n monitoring
-# Phải thấy devops-final-alerts
-
-# 6. Kiểm tra HPA
-kubectl get hpa -n production
-# Phải thấy 2-5 pods, CPU/RAM targets
+```powershell
+aws eks list-clusters --region ap-southeast-2
+aws ec2 describe-instances --region ap-southeast-2 --filters "Name=instance-state-name,Values=running" --query "Reservations[*].Instances[*].[InstanceId,InstanceType,Tags[?Key=='Name'].Value|[0]]" --output table
+aws elbv2 describe-load-balancers --region ap-southeast-2 --query "LoadBalancers[*].LoadBalancerName" --output table
+aws ec2 describe-nat-gateways --region ap-southeast-2 --filter "Name=state,Values=available" --query "NatGateways[*].NatGatewayId" --output table
 ```
-
-### Truy cập test:
-- 🌐 App: **https://www.moteo.fun**
-- 🔧 Jenkins: **https://jenkins.moteo.fun**
-- 📊 Grafana: `kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80` → `http://localhost:3000`
-
----
-
-## 🔴 PHẦN 9: Dọn dẹp tài nguyên (Destroy)
-
-> ⚠️ **QUAN TRỌNG:** Phải xóa Load Balancer TRƯỚC khi destroy Terraform,
-> nếu không VPC sẽ bị kẹt vì ENI (Network Interface) còn tồn tại.
-
-### Bước 9.1: Xóa Helm releases (để giải phóng LoadBalancer)
-```bash
-helm uninstall ingress-nginx -n ingress-nginx
-helm uninstall cert-manager -n cert-manager
-helm uninstall monitoring-stack -n monitoring
-```
-
-### Bước 9.2: Xóa các tài nguyên K8s trong namespaces
-```bash
-kubectl delete -f kubernetes/ingress-ssl.yaml --ignore-not-found
-kubectl delete -f kubernetes/alerting-rules.yaml --ignore-not-found
-kubectl delete -f kubernetes/deployment.yaml --ignore-not-found
-kubectl delete -f kubernetes/service.yaml --ignore-not-found
-kubectl delete -f kubernetes/hpa.yaml --ignore-not-found
-kubectl delete -f kubernetes/staging/deployment.yaml --ignore-not-found
-kubectl delete -f kubernetes/staging/service.yaml --ignore-not-found
-```
-
-### Bước 9.3: Xóa namespaces
-```bash
-kubectl delete namespace ingress-nginx --ignore-not-found
-kubectl delete namespace cert-manager --ignore-not-found
-kubectl delete namespace monitoring --ignore-not-found
-kubectl delete namespace staging --ignore-not-found
-kubectl delete namespace production --ignore-not-found
-```
-
-### Bước 9.4: Chờ tất cả LoadBalancer bị xóa
-```bash
-kubectl get svc -A | grep LoadBalancer
-# Phải trả về KHÔNG CÒN service nào type LoadBalancer (trừ kubernetes)
-```
-> Nếu vẫn còn, đợi 1-2 phút rồi kiểm tra lại.
-
-### Bước 9.5: Terraform Destroy
-```bash
-cd infrastructure
-terraform destroy -auto-approve
-```
-> ⏱️ Chờ khoảng **10–15 phút** để AWS xóa toàn bộ (bao gồm cả S3 bucket — tự động xóa ảnh nhờ `force_destroy`).
-
-### Bước 9.6: Xóa DNS trên Hostinger
-- Vào Hostinger → DNS Records → **Xóa** bản ghi CNAME `www` và A `jenkins`.
-
----
-
-## 📝 TÓM TẮT NHANH (Cheat Sheet)
-
-### Bật hệ thống (Apply):
-```bash
-cd infrastructure
-terraform init && terraform apply -auto-approve          # 1. Tạo hạ tầng (~15 phút)
-aws eks update-kubeconfig --region ap-southeast-2 --name devops-final-cluster  # 2. Kết nối kubectl
-helm install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace  # 3. Ingress
-helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true  # 4. SSL
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml # 4.5. HPA Metrics
-helm install monitoring-stack prometheus-community/kube-prometheus-stack -n monitoring --create-namespace  # 5. Monitoring
-kubectl apply -f kubernetes/ingress-ssl.yaml             # 6. Apply SSL config
-kubectl apply -f kubernetes/alerting-rules.yaml          # 7. Apply alert rules
-# 8. Cập nhật DNS Hostinger (CNAME www + A jenkins)
-# 9. SSH vào Jenkins → certbot → setup
-```
-
-### Tắt hệ thống (Destroy):
-```bash
-helm uninstall ingress-nginx -n ingress-nginx            # 1. Gỡ Ingress
-helm uninstall cert-manager -n cert-manager              # 2. Gỡ SSL
-helm uninstall monitoring-stack -n monitoring             # 3. Gỡ Monitoring
-kubectl delete ns ingress-nginx cert-manager monitoring staging production --ignore-not-found  # 4. Xóa NS
-# Đợi 1-2 phút cho LB xóa xong
-cd infrastructure
-terraform destroy -auto-approve                           # 5. Xóa hạ tầng (~10 phút)
-# 6. Xóa DNS Hostinger
-```
+All should return empty (except piston-server which belongs to another project).
