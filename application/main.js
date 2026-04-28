@@ -37,8 +37,12 @@ app.get('/health', (req, res) => {
   // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
   const dbMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
 
+  // App is healthy if: MongoDB connected OR using in-memory fallback (app still functional)
+  // Only degraded if: was connected before but lost connection mid-run
+  const isHealthy = dbStatus === 1 || !dataSource.isMongo;
+
   const health = {
-    status: dbStatus === 1 ? 'ok' : 'degraded',
+    status: isHealthy ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     uptime_seconds: Math.floor(process.uptime()),
     hostname: os.hostname(),
@@ -53,7 +57,7 @@ app.get('/health', (req, res) => {
     }
   };
 
-  const httpStatus = health.status === 'ok' ? 200 : 503;
+  const httpStatus = isHealthy ? 200 : 503;
   res.status(httpStatus).json(health);
 });
 
