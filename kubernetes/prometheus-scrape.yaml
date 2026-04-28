@@ -1,0 +1,28 @@
+# ============================================================
+# prometheus-scrape.yaml
+# Cấu hình để Prometheus (kube-prometheus-stack) tự động
+# scrape endpoint /metrics của application pods.
+#
+# Áp dụng cho: tất cả pods có label app=devops-final-app
+# Namespace: production
+# ============================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: devops-final-app-metrics
+  namespace: monitoring          # Phải cùng namespace với Prometheus
+  labels:
+    # Label này phải khớp với serviceMonitorSelector của kube-prometheus-stack
+    release: monitoring-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - production               # Scrape pods trong namespace production
+  selector:
+    matchLabels:
+      app: devops-final-app      # Khớp với label trong service.yaml
+  endpoints:
+    - port: http                 # Tên port trong service.yaml (port: 3000)
+      path: /metrics             # Endpoint expose bởi prom-client
+      interval: 15s              # Scrape mỗi 15 giây
+      scrapeTimeout: 10s

@@ -184,8 +184,8 @@ For staging + production environments:
 
 **Advanced (Encouraged):**
 - ✅ Alerting via Alertmanager — *4 custom rules: PodCrashLooping, HighCPU, HighRAM, ReplicasMismatch*
-- Centralized logging (Loki or ELK)
-- Custom application-level metrics (request rates, error counts)
+- ✅ **Centralized logging (Loki + Promtail)** — *loki-stack via Helm, thu thập log tất cả pods, query với LogQL trong Grafana*
+- ✅ **Custom application-level metrics** — *`prom-client` v15: HTTP request rate, latency histogram, active connections, product CRUD ops, S3 uploads — ServiceMonitor tự động scrape `GET /metrics`*
 
 > ✅ Monitoring components have been **actively demonstrated** with live Grafana dashboards.
 
@@ -250,12 +250,13 @@ Results demonstrated:
 
 ### 6.1 Project Repository and Technical Artefacts
 - ✅ Complete application source code
-- ✅ Infrastructure provisioning artefacts (Terraform) — `provider.tf`, `vpc.tf`, `eks.tf`, `jenkins.tf`
+- ✅ Infrastructure provisioning artefacts (Terraform) — `provider.tf`, `vpc.tf`, `eks.tf`, `s3.tf`, `jenkins.tf`, `workstation.tf`
 - ✅ CI/CD pipeline configuration (GitHub Actions) — `ci.yml` (3 jobs: CI → Staging → Production)
 - ✅ Self-Hosted CI/CD (Jenkins) — `Jenkinsfile`, `jenkins-setup.sh`, `jenkins.moteo.fun`
 - ✅ Deployment artefacts — `Dockerfile`, `deployment.yaml`, `service.yaml`, `hpa.yaml`, `ingress-ssl.yaml`
+- ✅ Application metrics — `metrics.js` (prom-client), `prometheus-scrape.yaml` (ServiceMonitor)
 - ✅ Multi-Environment — `staging/` (namespace, deployment, service) + `production/` (namespace)
-- ✅ Monitoring configuration — `alerting-rules.yaml`, kube-prometheus-stack (Helm)
+- ✅ Monitoring configuration — `alerting-rules.yaml`, `loki-values.yaml`, kube-prometheus-stack + loki-stack (Helm)
 - ✅ **No hard-coded secrets** — `.gitignore` chặn `*.tfstate`, `*.csv`, `.env`, `*.pem`
 
 ### 6.2 Technical Report (PDF)
@@ -298,9 +299,9 @@ Deploy own GitLab/Jenkins on separate machine with custom domain + HTTPS.
 Staging + Production with manual approval step.
 > ✅ **Đã thực hiện** — Pipeline 3 jobs: `build-and-push` → `deploy-staging` → `deploy-production`
 > - **Staging** (namespace `staging`): 1 replica, ClusterIP, deploy tự động sau CI pass
-> - **Production** (namespace `production`): 2 replicas, LoadBalancer, cần Manual Approve
+> - **Production** (namespace `production`): 2 replicas, ClusterIP (traffic vào qua NGINX Ingress), cần Manual Approve
 > - GitHub Environment `production` với Required reviewer: `DinhQuocCuong28664` (523H0008)
-> - Readiness Probe trên cả 2 môi trường: `httpGet /` port 3000
+> - Readiness Probe trên cả 2 môi trường: `httpGet /health` port 3000
 
 ### 7.3 Advanced Deployment Strategies ✅
 Rolling updates, blue–green deployment, or canary releases.
@@ -331,15 +332,16 @@ DevOps_Final/
 │   ├── .dockerignore               # Giảm kích thước build context
 │   ├── .gitignore                  # Bỏ qua node_modules, .env, logs
 │   ├── eslint.config.mjs           # ESLint v9 config (Code Linting)
-│   ├── main.js                     # Entry point (Express.js)
+│   ├── main.js                     # Entry point (Express.js + multer-s3 + prom-client)
+│   ├── metrics.js                  # 📊 Custom metrics: HTTP rate, latency, product ops, S3 uploads
 │   ├── package.json                # Dependencies (0 vulnerabilities ✅)
 │   ├── controllers/                # Business logic
 │   ├── models/                     # Data models
-│   ├── routes/                     # API routes (multer v2.1.1)
+│   ├── routes/                     # API routes (multer-s3 + @aws-sdk/client-s3 v3)
 │   ├── services/                   # Service layer
 │   ├── validators/                 # Input validation
 │   ├── views/                      # EJS templates
-│   └── public/                     # Static assets + uploads/
+│   └── public/                     # Static assets (fallback uploads/ for dev)
 ├── infrastructure/
 │   ├── provider.tf                 # AWS Provider + TLS Provider
 │   ├── vpc.tf                      # VPC, Subnets, NAT Gateway
@@ -351,18 +353,26 @@ DevOps_Final/
 ├── kubernetes/
 │   ├── staging/                    # ⭐ Staging Environment
 │   │   ├── namespace.yaml          #    Namespace staging
-│   │   ├── deployment.yaml         #    1 replica, RollingUpdate, readinessProbe
+│   │   ├── deployment.yaml         #    1 replica, RollingUpdate, readinessProbe /health
 │   │   └── service.yaml            #    ClusterIP (internal)
 │   ├── production/                 # ⭐ Production Environment
 │   │   └── namespace.yaml          #    Namespace production
-│   ├── deployment.yaml             # 2 replicas, RollingUpdate, readinessProbe (production)
+│   ├── deployment.yaml             # 2 replicas, RollingUpdate, readinessProbe /health (production)
 │   ├── service.yaml                # ClusterIP Service (traffic vào qua NGINX Ingress)
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70% (production)
+│   ├── mongodb-pvc.yaml            # PersistentVolumeClaim 1Gi for MongoDB data
+│   ├── mongodb-deployment.yaml     # MongoDB pod (deployed before app by CI pipeline)
+│   ├── mongodb-service.yaml        # ClusterIP service exposing MongoDB on port 27017
 │   ├── ingress-ssl.yaml            # Ingress NGINX + TLS (Let's Encrypt, production)
-│   └── alerting-rules.yaml         # Alertmanager: 4 rules (production namespace)
+│   ├── alerting-rules.yaml         # Alertmanager: 4 rules (production namespace)
+│   └── loki-values.yaml            # 📝 Loki Stack Helm values (Loki + Promtail, centralized logging)
+├── deploy.ps1                      # 🚀 Automated infra deploy (Terraform + Helm + K8s)
+├── destroy.ps1                     # 💥 Automated infra teardown (K8s cleanup + Terraform destroy)
 ├── setup.sh                        # Cài tools tự động: AWS CLI, Terraform, kubectl, Helm, Docker, Node.js
+├── stress-test.js                  # Load testing script (k6/autocannon)
 ├── Jenkinsfile                     # ⭐ Jenkins Pipeline (checkout → npm ci → lint)
 ├── .gitignore                      # Chặn *.tfstate, *.csv, *.pem, .terraform/
+├── Technical_Report.md             # 📄 Báo cáo kỹ thuật chi tiết (5 chapters)
 ├── Final_Project.md                # Rubric + Tiến độ (File này)
 └── PROJECT_SUMMARY.md              # Tổng kết dự án
 ```

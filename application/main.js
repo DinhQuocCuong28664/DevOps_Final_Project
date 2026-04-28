@@ -1,14 +1,22 @@
 require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const os = require('os');
+const express    = require('express');
+const mongoose   = require('mongoose');
+const os         = require('os');
+const path       = require('path');
+const fs         = require('fs');
+const { register, metricsMiddleware } = require('./metrics');
+
 const productRoutes = require('./routes/productRoutes');
-const dataSource = require('./services/dataSource');
-const uiRoutes = require('./routes/uiRoutes');
-const path = require('path');
-const fs = require('fs'); 
+const dataSource    = require('./services/dataSource');
+const uiRoutes      = require('./routes/uiRoutes');
 
 const app = express();
+
+// ============================================================
+// Metrics Middleware — đo tất cả HTTP requests (tước các route khác)
+// ============================================================
+app.use(metricsMiddleware);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -47,6 +55,16 @@ app.get('/health', (req, res) => {
 
   const httpStatus = health.status === 'ok' ? 200 : 503;
   res.status(httpStatus).json(health);
+});
+
+// ============================================================
+// Prometheus Metrics Endpoint
+// GET /metrics → trả về tất cả custom metrics ở định dạng text/plain
+// Prometheus sẽ tự scrape endpoint này mỗi 15 giây
+// ============================================================
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 const PORT = process.env.PORT || 3000;

@@ -1,0 +1,101 @@
+# ============================================================
+# Loki Stack Helm Values
+# Chart: grafana/loki-stack
+# Namespace: monitoring (cùng namespace với kube-prometheus-stack)
+# Bao gồm: Loki + Promtail (thu thập log từ tất cả pods)
+# ============================================================
+
+loki:
+  enabled: true
+  # Sử dụng single-binary mode (phù hợp cho course project)
+  isDefault: false
+  # Retention: giữ log 7 ngày
+  config:
+    limits_config:
+      retention_period: 168h
+    chunk_store_config:
+      max_look_back_period: 168h
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 168h
+
+promtail:
+  enabled: true
+  config:
+    # Thu thập log từ tất cả namespaces (production, staging, monitoring, ...)
+    snippets:
+      pipelineStages:
+        - cri: {}
+      scrapeConfigs: |
+        - job_name: kubernetes-pods
+          pipeline_stages:
+            - cri: {}
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels:
+                - __meta_kubernetes_pod_controller_name
+              regex: ([0-9a-z-.]+?)(-[0-9a-f]{8,10})?
+              action: replace
+              target_label: __tmp_controller_name
+            - source_labels:
+                - __meta_kubernetes_pod_label_app_kubernetes_io_name
+                - __meta_kubernetes_pod_label_app
+                - __tmp_controller_name
+                - __meta_kubernetes_pod_name
+              regex: ^;*([^;]+)(;.*)?$
+              action: replace
+              target_label: app
+            - source_labels:
+                - __meta_kubernetes_pod_node_name
+              action: replace
+              target_label: node_name
+            - source_labels:
+                - __meta_kubernetes_namespace
+              action: replace
+              target_label: namespace
+            - action: replace
+              replacement: $1
+              separator: /
+              source_labels:
+                - namespace
+                - app
+              target_label: job
+            - source_labels:
+                - __meta_kubernetes_pod_name
+              action: replace
+              target_label: pod
+            - source_labels:
+                - __meta_kubernetes_pod_container_name
+              action: replace
+              target_label: container
+            - source_labels:
+                - __meta_kubernetes_pod_uid
+                - __meta_kubernetes_pod_container_name
+              replacement: /var/log/pods/*$1/*.log
+              separator: /
+              target_label: __path__
+            - source_labels:
+                - __meta_kubernetes_pod_annotationpresent_kubernetes_io_config_hash
+                - __meta_kubernetes_pod_annotation_kubernetes_io_config_mirror
+                - __meta_kubernetes_pod_label_component
+              separator: ;
+              regex: true;([^;]+);(.*)
+              target_label: __path__
+              replacement: /var/log/pods/*$1*/*/*.log
+
+# Grafana: KHÔNG deploy riêng — dùng lại Grafana từ kube-prometheus-stack
+grafana:
+  enabled: false
+
+# Fluent Bit: tắt (dùng Promtail)
+fluent-bit:
+  enabled: false
+
+# filebeat: tắt
+filebeat:
+  enabled: false
+
+# logstash: tắt
+logstash:
+  enabled: false

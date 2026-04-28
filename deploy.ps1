@@ -2,7 +2,7 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  DevOps Final Project — Deploy Script" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Script tự động hóa toàn bộ quá trình" -ForegroundColor Cyan
-Write-Host "  khởi động hệ thống từ đầu (~25-30 phút)" -ForegroundColor Cyan
+Write-Host "  khởi động hệ thống từ đầu (~30-35 phút)" -ForegroundColor Cyan
 Write-Host "============================================`n" -ForegroundColor Cyan
 
 # ============================================================
@@ -18,11 +18,13 @@ Pop-Location
 
 Write-Host "  ✅ Hạ tầng đã được tạo!" -ForegroundColor Green
 
-# Lấy Jenkins IP từ terraform output
-$jenkinsIp = terraform -chdir="infrastructure" output -raw jenkins_public_ip 2>$null
+# Lấy Jenkins IP và S3 bucket name từ terraform output
+$jenkinsIp   = terraform -chdir="infrastructure" output -raw jenkins_public_ip 2>$null
+$s3Bucket    = terraform -chdir="infrastructure" output -raw s3_uploads_bucket_name 2>$null
 Write-Host ""
 Write-Host "  =============================" -ForegroundColor Magenta
-Write-Host "  Jenkins IP : $jenkinsIp" -ForegroundColor Magenta
+Write-Host "  Jenkins IP  : $jenkinsIp" -ForegroundColor Magenta
+Write-Host "  S3 Bucket   : $s3Bucket (ap-southeast-2)" -ForegroundColor Magenta
 Write-Host "  → Cần thêm A record 'jenkins' trỏ vào IP này trên Hostinger!" -ForegroundColor Magenta
 Write-Host "  =============================" -ForegroundColor Magenta
 
@@ -55,6 +57,7 @@ Write-Host "`n[3/7] Cài đặt NGINX Ingress Controller..." -ForegroundColor Ye
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>$null
 helm repo add jetstack https://charts.jetstack.io 2>$null
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>$null
+helm repo add grafana https://grafana.github.io/helm-charts 2>$null
 helm repo update
 
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx `
@@ -92,14 +95,20 @@ Write-Host "  ✅ Cert-Manager đã cài xong!" -ForegroundColor Green
 # ============================================================
 # BƯỚC 5: Cài đặt Metrics Server + Monitoring Stack
 # ============================================================
-Write-Host "`n[5/7] Cài đặt Metrics Server + Prometheus + Grafana..." -ForegroundColor Yellow
+Write-Host "`n[5/7] Cài đặt Metrics Server + Prometheus + Grafana + Loki..." -ForegroundColor Yellow
 
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
 helm upgrade --install monitoring-stack prometheus-community/kube-prometheus-stack `
     --namespace monitoring --create-namespace
 
-Write-Host "  ✅ Monitoring stack đã cài xong!" -ForegroundColor Green
+# Cài Loki Stack (Loki + Promtail) — dùng lại Grafana có sẵn
+Write-Host "  Cài đặt Loki Stack (Centralized Logging)..." -ForegroundColor Cyan
+helm upgrade --install loki-stack grafana/loki-stack `
+    --namespace monitoring `
+    --values kubernetes/loki-values.yaml
+
+Write-Host "  ✅ Monitoring + Logging stack đã cài xong!" -ForegroundColor Green
 
 # Lấy mật khẩu Grafana
 $grafanaPass = kubectl --namespace monitoring get secrets monitoring-stack-grafana `
@@ -112,6 +121,9 @@ Write-Host "  Grafana URL  : http://localhost:3000 (sau khi port-forward)" -Fore
 Write-Host "  Grafana User : admin" -ForegroundColor Magenta
 Write-Host "  Grafana Pass : $grafanaPass" -ForegroundColor Magenta
 Write-Host "  Port-forward : kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80" -ForegroundColor Magenta
+Write-Host "  ————————————————————————" -ForegroundColor Magenta
+Write-Host "  Loki (Logs)  : Đã tích hợp vào Grafana (Data Source: Loki)" -ForegroundColor Magenta
+Write-Host "  LogQL mẫu   : {namespace='production'} |= 'error'" -ForegroundColor Magenta
 Write-Host "  =============================" -ForegroundColor Magenta
 
 # ============================================================
@@ -120,7 +132,8 @@ Write-Host "  =============================" -ForegroundColor Magenta
 Write-Host "`n[6/7] Apply Kubernetes manifests..." -ForegroundColor Yellow
 kubectl apply -f kubernetes/ingress-ssl.yaml
 kubectl apply -f kubernetes/alerting-rules.yaml
-Write-Host "  ✅ Ingress SSL và Alerting Rules đã được apply!" -ForegroundColor Green
+kubectl apply -f kubernetes/prometheus-scrape.yaml
+Write-Host "  ✅ Ingress SSL, Alerting Rules và Prometheus ServiceMonitor đã được apply!" -ForegroundColor Green
 
 Write-Host "  Đợi SSL certificate được cấp (có thể mất 2-3 phút sau khi DNS trỏ đúng)..." -ForegroundColor Cyan
 Write-Host "  Kiểm tra: kubectl get certificate -n production" -ForegroundColor Gray
@@ -156,3 +169,4 @@ Write-Host "   Truy cập hệ thống:" -ForegroundColor Green
 Write-Host "   🌐 App     : https://www.moteo.fun" -ForegroundColor Green
 Write-Host "   🔧 Jenkins : https://jenkins.moteo.fun" -ForegroundColor Green
 Write-Host "   📊 Grafana : kubectl port-forward -n monitoring svc/monitoring-stack-grafana 3000:80" -ForegroundColor Green
+Write-Host "   📄 Loki Logs: Grafana → Explore → Data Source: Loki → {namespace=\"production\"}" -ForegroundColor Green

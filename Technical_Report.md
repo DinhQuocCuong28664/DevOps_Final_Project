@@ -17,7 +17,7 @@
 
 | Name | Student ID | GitHub | Role |
 |------|-----------|--------|------|
-| Đinh Quốc Cương | 523H0008 | DinhQuocCuong28664 | Repository Owner |
+| Đinh Quốc Cường | 523H0008 | DinhQuocCuong28664 | Repository Owner |
 | Nguyễn Quang Trường | — | nguyenquangtruong08112005 | DevOps Engineer |
 | Phạm Minh Hào | — | PhamMHao | DevOps Engineer |
 
@@ -96,8 +96,10 @@ The team selected **Tier 5 – Expert: Kubernetes-Based Architecture** as the de
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | Application | Node.js / Express.js | 18 (Alpine) |
+| **Database** | **MongoDB** (via `mongodb-service` ClusterIP) | 7.x |
 | Containerization | Docker (Multi-stage build) | Latest |
 | Container Registry | Docker Hub | — |
+| **Object Storage** | **AWS S3** (`multer-s3` + `@aws-sdk/client-s3` v3) | v3 |
 | Orchestration | Amazon EKS (Kubernetes) | 1.30 |
 | Infrastructure as Code | Terraform (AWS + TLS providers) | ~5.0 |
 | CI/CD (Primary) | GitHub Actions | v4 |
@@ -105,6 +107,8 @@ The team selected **Tier 5 – Expert: Kubernetes-Based Architecture** as the de
 | Ingress Controller | NGINX Ingress Controller | Latest |
 | TLS/SSL | Cert-Manager + Let's Encrypt (ACME v02) | 1.20.x |
 | Monitoring | kube-prometheus-stack (Prometheus + Grafana + Alertmanager) | Latest |
+| **Centralized Logging** | **Grafana Loki + Promtail** (`loki-stack` Helm chart) | 2.9.x |
+| **App Metrics** | **prom-client** v15 (Node.js Prometheus client) | 15.1.x |
 | Code Quality | ESLint | v9 |
 | Security Scanning | Trivy (Aqua Security) | Latest |
 | DNS / Domain | Hostinger (moteo.fun) | — |
@@ -123,8 +127,10 @@ All infrastructure is defined declaratively using **HashiCorp Terraform**, ensur
 | `provider.tf` | Declares AWS provider (region `ap-southeast-2`) and TLS provider |
 | `vpc.tf` | VPC, subnets, NAT Gateway, DNS hostnames |
 | `eks.tf` | EKS cluster, managed node groups, IAM permissions |
+| `s3.tf` | S3 bucket for image uploads, public-read policy, IAM policy + attachment to EKS node role |
 | `jenkins.tf` | Jenkins EC2 instance, security group, Elastic IP, SSH key pair |
 | `jenkins-setup.sh` | User-data script for automated Jenkins provisioning |
+| `workstation.tf` | DevOps Workstation EC2 + IAM Instance Profile (no long-lived access keys needed) |
 
 ### 2.2 Network Architecture (VPC)
 
@@ -365,10 +371,11 @@ strategy:
 ```yaml
 readinessProbe:
   httpGet:
-    path: /
+    path: /health
     port: 3000
   initialDelaySeconds: 10
   periodSeconds: 5
+  failureThreshold: 3
 ```
 
 This ensures that Kubernetes only routes traffic to pods that have successfully responded to HTTP health checks, preventing users from experiencing downtime during deployments.
@@ -428,6 +435,9 @@ Kubernetes provides automatic self-healing capabilities:
 | `deployment.yaml` | production | 2-replica deployment with RollingUpdate + readiness probe |
 | `service.yaml` | production | **ClusterIP** service (port 80 → 3000, internal only) |
 | `hpa.yaml` | production | HPA: 2→5 pods, CPU 60%, RAM 70% |
+| `mongodb-pvc.yaml` | production / staging | PersistentVolumeClaim 1Gi for MongoDB data |
+| `mongodb-deployment.yaml` | production / staging | MongoDB pod (deployed before app by CI pipeline) |
+| `mongodb-service.yaml` | production / staging | ClusterIP service exposing MongoDB on port 27017 |
 | `ingress-ssl.yaml` | production | NGINX Ingress + ClusterIssuer (Let's Encrypt) |
 | `alerting-rules.yaml` | monitoring | 4 PrometheusRule alerts for production |
 
@@ -499,7 +509,91 @@ These alerts ensure that the team is notified immediately when:
 - Resource consumption approaches configured limits
 - The deployment is unable to maintain the desired replica count (e.g., after a node failure or pod deletion)
 
-### 5.4 Lessons Learned
+### 5.4 Centralized Logging with Loki + Promtail
+
+To complement Prometheus metrics, **Grafana Loki** (the "Prometheus for logs") is deployed alongside **Promtail** (the log collection agent) using the `grafana/loki-stack` Helm chart. Both components share the `monitoring` namespace with the existing kube-prometheus-stack, reusing the same Grafana instance.
+
+**Architecture:**
+
+```
+[All Pods in EKS]  --stdout/stderr-->
+    [Promtail DaemonSet]  --push-->
+        [Loki]  <--query--  [Grafana Explore (LogQL)]
+```
+
+**Deployment:**
+```bash
+helm upgrade --install loki-stack grafana/loki-stack \
+    --namespace monitoring \
+    --values kubernetes/loki-values.yaml
+```
+
+**Key configuration** (`kubernetes/loki-values.yaml`):
+- `loki.enabled: true` — runs Loki in single-binary mode
+- `promtail.enabled: true` — DaemonSet deploys on every node, collects pod logs via CRI
+- `grafana.enabled: false` — reuses the existing Grafana from kube-prometheus-stack
+- **Retention**: 7 days (168 hours)
+
+**Querying logs in Grafana:**
+
+| LogQL Example | Description |
+|---------------|-------------|
+| `{namespace="production"}` | All logs from production namespace |
+| `{namespace="production"} \|= "error"` | Filter for error lines |
+| `{app="devops-final-app", namespace="production"} \|= "500"` | HTTP 500 errors from app |
+| `{namespace="production"} \| json \| level="error"` | JSON-structured error logs |
+
+**Access:** Grafana → Explore → Data Source: **Loki** → enter LogQL query.
+
+### 5.5 Custom Application-Level Metrics
+
+Beyond infrastructure metrics, the application itself exposes **business-level metrics** via the `prom-client` library (the official Prometheus client for Node.js). This is implemented in a dedicated `metrics.js` module that is imported by `main.js`.
+
+**5 custom metrics defined:**
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `moteo_http_requests_total` | Counter | `method`, `route`, `status_code` | Total HTTP requests received |
+| `moteo_http_request_duration_ms` | Histogram | `method`, `route`, `status_code` | Request processing time in ms |
+| `moteo_http_active_requests` | Gauge | — | Requests currently being processed |
+| `moteo_product_operations_total` | Counter | `operation`, `status` | Product CRUD operations (create/read/update/delete) |
+| `moteo_file_uploads_total` | Counter | `status` | S3 image upload success/failure count |
+
+Plus all **Node.js default metrics** (`moteo_` prefix): heap usage, GC duration, event loop lag, active handles.
+
+**How it works:**
+
+```
+HTTP Request → metricsMiddleware → [route handler] → res.finish event
+                     ↓                                       ↓
+             httpActiveRequests.inc()              httpRequestsTotal.inc()
+                                                  httpRequestDurationMs.observe()
+                                                  httpActiveRequests.dec()
+```
+
+**Prometheus scrape config** (`kubernetes/prometheus-scrape.yaml`):
+- `ServiceMonitor` CRD (Prometheus Operator) — auto-discovers the app service
+- Scrapes `GET /metrics` every **15 seconds**
+- Scoped to namespace `production`
+
+**Sample PromQL queries for Grafana dashboards:**
+
+```promql
+# HTTP requests per second (all routes)
+sum(rate(moteo_http_requests_total[1m]))
+
+# 95th percentile latency
+histogram_quantile(0.95, sum(rate(moteo_http_request_duration_ms_bucket[5m])) by (le))
+
+# Error rate (4xx + 5xx)
+sum(rate(moteo_http_requests_total{status_code=~"[45].."}[1m]))
+/ sum(rate(moteo_http_requests_total[1m]))
+
+# Product create operations
+rate(moteo_product_operations_total{operation="create"}[5m])
+```
+
+### 5.6 Lessons Learned
 
 1. **EKS Metrics Server**: AWS EKS does not include the Kubernetes Metrics Server by default. Without it, HPA reports `<unknown>` for CPU/memory targets. This must be installed separately after cluster creation.
 
@@ -554,8 +648,13 @@ DevOps_Final/
 │   ├── deployment.yaml             # 2 replicas, RollingUpdate, readiness probe
 │   ├── service.yaml                # ClusterIP (internal — traffic via Ingress)
 │   ├── hpa.yaml                    # HPA: 2→5 pods, CPU 60%, RAM 70%
+│   ├── mongodb-pvc.yaml            # PersistentVolumeClaim 1Gi for MongoDB data
+│   ├── mongodb-deployment.yaml     # MongoDB pod (deployed before app by CI pipeline)
+│   ├── mongodb-service.yaml        # ClusterIP service exposing MongoDB on port 27017
 │   ├── ingress-ssl.yaml            # NGINX Ingress + Let's Encrypt TLS
-│   └── alerting-rules.yaml         # 4 Alertmanager rules (production)
+│   ├── alerting-rules.yaml         # 4 Alertmanager rules (production)
+│   ├── loki-values.yaml            # Loki Stack Helm values (Loki + Promtail, 7-day retention)
+│   └── prometheus-scrape.yaml      # ServiceMonitor — Prometheus auto-scrape /metrics every 15s
 ├── setup.sh                        # Workstation bootstrap: installs AWS CLI, Terraform, kubectl, Helm, Docker, Node.js
 ├── Jenkinsfile                     # Jenkins pipeline (checkout → npm ci → lint)
 ├── stress-test.js                  # HTTPS load test (200 concurrent users)

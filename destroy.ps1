@@ -6,9 +6,10 @@ Write-Host "============================================" -ForegroundColor Cyan
 # BƯỚC 1: Gỡ bỏ Helm Releases (giải phóng LoadBalancer của Ingress)
 # ============================================================
 Write-Host "`n[1/5] Gỡ bỏ Helm Releases..." -ForegroundColor Yellow
-helm uninstall ingress-nginx -n ingress-nginx --ignore-not-found
-helm uninstall cert-manager -n cert-manager --ignore-not-found
-helm uninstall monitoring-stack -n monitoring --ignore-not-found
+helm uninstall ingress-nginx   -n ingress-nginx --ignore-not-found
+helm uninstall cert-manager    -n cert-manager  --ignore-not-found
+helm uninstall loki-stack      -n monitoring    --ignore-not-found
+helm uninstall monitoring-stack -n monitoring   --ignore-not-found
 
 # ============================================================
 # BƯỚC 2: Xóa các Kubernetes Resources
@@ -75,6 +76,18 @@ if ($elapsed -ge $maxWait) {
 # BƯỚC 5: Terraform Destroy
 # ============================================================
 Write-Host "`n[5/5] Phá hủy hạ tầng AWS với Terraform..." -ForegroundColor Yellow
+
+Write-Host ""
+Write-Host "  ⚠️  CẢNH BÁO S3:" -ForegroundColor Red
+Write-Host "  S3 bucket 'devops-final-uploads-dqc28664' có force_destroy = true" -ForegroundColor Red
+Write-Host "  → Toàn bộ ảnh sản phẩm đã upload sẽ bị XÓA VĨNH VIỄN!" -ForegroundColor Red
+Write-Host "  → Backup dữ liệu nếu cần trước khi tiếp tục." -ForegroundColor Red
+$confirmS3 = Read-Host "  Xác nhận xóa toàn bộ S3 data? (y/n)"
+if ($confirmS3 -ne "y") {
+    Write-Host "  ❌ Đã hủy." -ForegroundColor Red
+    exit 1
+}
+
 Push-Location -Path "infrastructure"
 terraform destroy -auto-approve
 Pop-Location
