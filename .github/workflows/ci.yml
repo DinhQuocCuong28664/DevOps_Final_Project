@@ -94,8 +94,8 @@ jobs:
 
       - name: Deploy to Staging
         run: |
-          # Create staging namespace if not exists (idempotent)
-          kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
+          # Create staging namespace (declarative)
+          kubectl apply -f kubernetes/staging/namespace.yaml
 
           # Note: Staging reuses production MongoDB (cross-namespace DNS)
           # mongodb-service.production.svc.cluster.local
@@ -141,8 +141,8 @@ jobs:
 
       - name: Deploy to Production
         run: |
-          # Create production namespace if not exists (idempotent)
-          kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+          # Create production namespace (declarative)
+          kubectl apply -f kubernetes/production/namespace.yaml
 
           # Ensure MongoDB is deployed (idempotent)
           kubectl apply -f kubernetes/mongodb-pvc.yaml
