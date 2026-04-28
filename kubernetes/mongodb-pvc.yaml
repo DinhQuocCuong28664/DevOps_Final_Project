@@ -1,5 +1,5 @@
 # PersistentVolumeClaim for MongoDB
-# Uses EBS gp3 (within AWS Free Tier 30GB)
+# Uses EBS gp2 (default EKS StorageClass)
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -8,7 +8,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce      # EBS only supports single-node mount
-  storageClassName: gp3  # gp3 is more cost-effective than gp2
+  storageClassName: gp2  # gp2 is the default StorageClass on EKS
   resources:
     requests:
       storage: 1Gi       # 1GB sufficient for the project, within Free Tier
