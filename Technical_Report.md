@@ -170,6 +170,8 @@ The Amazon EKS cluster is provisioned using the `terraform-aws-modules/eks/aws` 
 | AMI Type | `AL2_x86_64` | Amazon Linux 2, optimized for EKS |
 | Endpoint Access | Public | Enables `kubectl` access from developer machines |
 | Admin Permissions | Cluster creator auto-admin | Simplified access management |
+| **EBS CSI Driver** | `aws-ebs-csi-driver` addon (auto-installed) | Enables PersistentVolumeClaims backed by AWS EBS |
+| **EBS IAM Policy** | `AmazonEBSCSIDriverPolicy` attached to node role | Grants node permission to create/attach EBS volumes |
 
 ### 2.4 Jenkins EC2 Server (Bonus Feature)
 
@@ -275,10 +277,12 @@ The pipeline consists of **three sequential jobs**, triggered on pushes to the `
 After CI passes successfully, this job automatically deploys to the `staging` namespace:
 
 1. Configures AWS credentials and fetches EKS kubeconfig
-2. Creates the `staging` namespace (idempotent via `kubectl apply`)
+2. Applies `kubernetes/staging/namespace.yaml` (declarative, idempotent)
 3. Replaces `IMAGE_TAG_PLACEHOLDER` in the staging deployment manifest with the current Git SHA
 4. Applies deployment and service manifests
 5. Waits for rollout completion with a 120-second timeout
+
+**Note**: Staging does **not** deploy its own MongoDB instance. Instead, it connects to the production MongoDB via Kubernetes cross-namespace DNS (`mongodb-service.production.svc.cluster.local`), using a separate database (`products_db_staging`) to keep data isolated. This reduces resource usage in the student environment.
 
 #### Job 3: deploy-production (Manual Approval + Auto-Rollback)
 
@@ -435,9 +439,9 @@ Kubernetes provides automatic self-healing capabilities:
 | `deployment.yaml` | production | 2-replica deployment with RollingUpdate + readiness probe |
 | `service.yaml` | production | **ClusterIP** service (port 80 → 3000, internal only) |
 | `hpa.yaml` | production | HPA: 2→5 pods, CPU 60%, RAM 70% |
-| `mongodb-pvc.yaml` | production / staging | PersistentVolumeClaim 1Gi for MongoDB data |
-| `mongodb-deployment.yaml` | production / staging | MongoDB pod (deployed before app by CI pipeline) |
-| `mongodb-service.yaml` | production / staging | ClusterIP service exposing MongoDB on port 27017 |
+| `mongodb-pvc.yaml` | production | PersistentVolumeClaim 1Gi for MongoDB data (StorageClass: `gp2`) |
+| `mongodb-deployment.yaml` | production | MongoDB pod (deployed before app by CI pipeline) |
+| `mongodb-service.yaml` | production | ClusterIP service exposing MongoDB on port 27017 |
 | `ingress-ssl.yaml` | production | NGINX Ingress + ClusterIssuer (Let's Encrypt) |
 | `alerting-rules.yaml` | monitoring | 4 PrometheusRule alerts for production |
 
