@@ -1,6 +1,30 @@
 body { background: #f8f9fa; }
 .table { background: #fff; }
+.table th { white-space: nowrap; }
 .modal .form-label { font-weight: 600; }
+
+/* Search & Filter Bar */
+.search-filter-bar .form-control-sm,
+.search-filter-bar .form-select-sm {
+  font-size: 0.875rem;
+}
+
+/* Pagination */
+.pagination { margin-top: 0; }
+
+/* Product count badge */
+.product-count {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+/* Table cell truncation */
+.table td {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 @media (min-width: 768px) {
   .modal-dialog { max-width: 540px; }

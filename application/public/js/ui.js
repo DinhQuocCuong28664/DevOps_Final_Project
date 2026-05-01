@@ -18,11 +18,21 @@ document.addEventListener('DOMContentLoaded', function () {
     const id = row.dataset.id;
     document.getElementById('product-id').value = id;
     const cols = row.querySelectorAll('td');
-    // columns: 0=thumb,1=name,2=price,3=color,4=description
+    // columns: 0=thumb, 1=name, 2=price, 3=color, 4=category, 5=description
     document.getElementById('name').value = cols[1].textContent.trim();
-    document.getElementById('price').value = cols[2].textContent.trim();
+    document.getElementById('price').value = cols[2].textContent.trim().replace('$', '');
     document.getElementById('color').value = cols[3].textContent.trim();
-    document.getElementById('description').value = cols[4].textContent.trim();
+    // Set category dropdown
+    const catSelect = document.getElementById('category');
+    const catName = cols[4].textContent.trim();
+    if (catName && catName !== 'N/A') {
+      for (let opt of catSelect.options) {
+        if (opt.text === catName) { opt.selected = true; break; }
+      }
+    } else {
+      catSelect.value = '';
+    }
+    document.getElementById('description').value = cols[5].textContent.trim();
     const existingImage = row.dataset.image || '';
     document.getElementById('img-preview').src = existingImage && existingImage.length ? existingImage : '/images/placeholder-80.png';
     document.getElementById('imageUrl').value = existingImage || '';
@@ -63,6 +73,8 @@ document.addEventListener('DOMContentLoaded', function () {
     formData.append('price', price);
     formData.append('color', color);
     formData.append('description', document.getElementById('description').value.trim());
+    const category = document.getElementById('category').value;
+    if (category) formData.append('category', category);
     const file = document.getElementById('imageFile').files[0];
     if (file) formData.append('imageFile', file);
 

@@ -137,7 +137,9 @@ kubectl apply -f kubernetes/mongodb-service.yaml
 Write-Host "  [OK] MongoDB applied" -ForegroundColor Green
 
 # Application (production)
-kubectl apply -f kubernetes/deployment.yaml
+# IMPORTANT: Replace IMAGE_TAG_PLACEHOLDER with a real tag for initial bootstrap
+# The CI/CD pipeline normally does this via sed, but for first-time deploy we use 'latest'
+(Get-Content kubernetes/deployment.yaml) -replace 'IMAGE_TAG_PLACEHOLDER', 'latest' | kubectl apply -f -
 kubectl apply -f kubernetes/service.yaml
 kubectl apply -f kubernetes/hpa.yaml
 Write-Host "  [OK] Application (production) applied" -ForegroundColor Green

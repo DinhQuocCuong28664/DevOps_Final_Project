@@ -6,9 +6,10 @@ const path       = require('path');
 const fs         = require('fs');
 const { register, metricsMiddleware } = require('./metrics');
 
-const productRoutes = require('./routes/productRoutes');
-const dataSource    = require('./services/dataSource');
-const uiRoutes      = require('./routes/uiRoutes');
+const productRoutes  = require('./routes/productRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const dataSource     = require('./services/dataSource');
+const uiRoutes       = require('./routes/uiRoutes');
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', uiRoutes);
 app.use('/products', productRoutes);
+app.use('/categories', categoryRoutes);
 
 // ============================================================
 // Health Check Endpoint - used by K8s readinessProbe / livenessProbe
