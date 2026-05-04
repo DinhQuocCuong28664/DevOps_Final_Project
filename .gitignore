@@ -23,6 +23,11 @@ infrastructure/*.tfvars
 # SSH key (Jenkins server)
 *.pem
 
+# Local environment secrets
+.env
+*.env
+!.env.example
+
 # ============================
 # Hệ điều hành / IDE
 # ============================

@@ -16,6 +16,104 @@ Write-Host "  DevOps Final Project - Full Deploy"        -ForegroundColor Cyan
 Write-Host "  Estimated time: ~30-40 minutes"            -ForegroundColor Cyan
 Write-Host "============================================`n" -ForegroundColor Cyan
 
+function ConvertTo-PlainText {
+    param([Security.SecureString]$SecureValue)
+
+    if (-not $SecureValue) {
+        return ""
+    }
+
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SecureValue)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
+function Escape-HelmValue {
+    param([string]$Value)
+
+    return $Value.Replace("\", "\\").Replace(",", "\,").Replace("=", "\=")
+}
+
+function Import-DotEnv {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return
+    }
+
+    Get-Content $Path | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#") -or -not $line.Contains("=")) {
+            return
+        }
+
+        $key, $value = $line.Split("=", 2)
+        $key = $key.Trim()
+        $value = $value.Trim().Trim('"').Trim("'")
+
+        if ($key) {
+            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        }
+    }
+}
+
+function Read-AlertEmailConfig {
+    Import-DotEnv -Path (Join-Path $PSScriptRoot ".env")
+
+    if ($env:ALERT_SMTP_USER -and $env:ALERT_SMTP_PASS -and $env:ALERT_TO) {
+        $smtpHost = $env:ALERT_SMTP_HOST
+        if ([string]::IsNullOrWhiteSpace($smtpHost)) {
+            $smtpHost = "smtp.gmail.com:587"
+        }
+
+        Write-Host "Alertmanager email notification setup" -ForegroundColor Cyan
+        Write-Host "  Loaded email alert settings from .env for receiver: $env:ALERT_TO" -ForegroundColor Green
+
+        return @{
+            SmtpHost = $smtpHost
+            SmtpUser = $env:ALERT_SMTP_USER
+            SmtpPass = $env:ALERT_SMTP_PASS
+            AlertTo  = $env:ALERT_TO
+        }
+    }
+
+    Write-Host "Alertmanager email notification setup" -ForegroundColor Cyan
+    Write-Host "  Press Enter without an SMTP username to skip email and keep localhost:9093 UI only." -ForegroundColor Gray
+    Write-Host "  For Gmail, use an App Password, not your normal Gmail password." -ForegroundColor Gray
+
+    $smtpUser = Read-Host "  SMTP username/email"
+    if ([string]::IsNullOrWhiteSpace($smtpUser)) {
+        Write-Host "  Email alerting skipped. Alertmanager UI remains available through localhost:9093." -ForegroundColor Yellow
+        return $null
+    }
+
+    $smtpPass = ConvertTo-PlainText (Read-Host "  SMTP app password" -AsSecureString)
+    $alertTo = Read-Host "  Alert receiver email"
+    $smtpHost = Read-Host "  SMTP host:port [smtp.gmail.com:587]"
+
+    if ([string]::IsNullOrWhiteSpace($smtpHost)) {
+        $smtpHost = "smtp.gmail.com:587"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($smtpPass) -or [string]::IsNullOrWhiteSpace($alertTo)) {
+        Write-Host "  Incomplete email settings. Email alerting skipped." -ForegroundColor Yellow
+        return $null
+    }
+
+    return @{
+        SmtpHost = $smtpHost
+        SmtpUser = $smtpUser
+        SmtpPass = $smtpPass
+        AlertTo  = $alertTo
+    }
+}
+
+$alertEmailConfig = Read-AlertEmailConfig
+
 # ============================================================
 # STEP 1: Terraform - Provision AWS Infrastructure
 # ============================================================
@@ -106,8 +204,34 @@ Write-Host "`n[5/8] Installing Prometheus + Grafana + Loki..." -ForegroundColor 
 
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
-helm upgrade --install monitoring-stack prometheus-community/kube-prometheus-stack `
-    --namespace monitoring --create-namespace
+$monitoringHelmArgs = @(
+    "upgrade", "--install", "monitoring-stack", "prometheus-community/kube-prometheus-stack",
+    "--namespace", "monitoring", "--create-namespace"
+)
+
+if ($alertEmailConfig) {
+    Write-Host "  Configuring Alertmanager email receiver: $($alertEmailConfig.AlertTo)" -ForegroundColor Cyan
+    $monitoringHelmArgs += @(
+        "--set", "alertmanager.config.global.smtp_smarthost=$(Escape-HelmValue $alertEmailConfig.SmtpHost)",
+        "--set", "alertmanager.config.global.smtp_from=$(Escape-HelmValue $alertEmailConfig.SmtpUser)",
+        "--set", "alertmanager.config.global.smtp_auth_username=$(Escape-HelmValue $alertEmailConfig.SmtpUser)",
+        "--set", "alertmanager.config.global.smtp_auth_password=$(Escape-HelmValue $alertEmailConfig.SmtpPass)",
+        "--set", "alertmanager.config.global.smtp_require_tls=true",
+        "--set", "alertmanager.config.route.group_by[0]=alertname",
+        "--set", "alertmanager.config.route.group_wait=30s",
+        "--set", "alertmanager.config.route.group_interval=5m",
+        "--set", "alertmanager.config.route.repeat_interval=2h",
+        "--set", "alertmanager.config.route.receiver=email-alerts",
+        "--set", "alertmanager.config.receivers[0].name=email-alerts",
+        "--set", "alertmanager.config.receivers[0].email_configs[0].to=$(Escape-HelmValue $alertEmailConfig.AlertTo)",
+        "--set", "alertmanager.config.receivers[0].email_configs[0].send_resolved=true"
+    )
+}
+else {
+    Write-Host "  Installing Alertmanager without email receiver; use localhost:9093 for alert verification." -ForegroundColor Yellow
+}
+
+helm @monitoringHelmArgs
 
 helm upgrade --install loki-stack grafana/loki-stack `
     --namespace monitoring `
