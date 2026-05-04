@@ -380,11 +380,11 @@ sequenceDiagram
 
 ## Quick Reference: Screenshot Hotkeys
 
-| OS | Screenshot Tool | Hotkey |
-|----|----------------|--------|
-| Windows | Snipping Tool | Win+Shift+S |
-| Windows | Print Screen | PrtScn |
-| macOS | Screenshot | Cmd+Shift+4 |
+| OS      | Screenshot Tool     | Hotkey                                 |
+| ------- | ------------------- | -------------------------------------- |
+| Windows | Snipping Tool       | Win+Shift+S                            |
+| Windows | Print Screen        | PrtScn                                 |
+| macOS   | Screenshot          | Cmd+Shift+4                            |
 | VS Code | Terminal Screenshot | Terminal → Select → Right-click → Copy |
 
 ## Image Format Recommendations

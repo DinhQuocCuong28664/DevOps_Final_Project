@@ -25,7 +25,8 @@ spec:
     spec:
       containers:
       - name: nodejs-container
-        # CD pipeline will replace IMAGE_TAG_PLACEHOLDER with the Git SHA
+        # CD pipeline replaces IMAGE_TAG_PLACEHOLDER with the Git commit SHA
+        # NEVER use 'latest' tag — must use explicit version tags per STANDARD RULE
         image: dinhquoccuong286/devops-final-app:IMAGE_TAG_PLACEHOLDER
         ports:
         - containerPort: 3000

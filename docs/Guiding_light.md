@@ -9,6 +9,7 @@
 
 ### One Command - Full Automation:
 ```powershell
+cd "c:\Users\cbzer\DevOps_Final"
 powershell -ExecutionPolicy Bypass -File ".\deploy.ps1"
 ```
 
@@ -39,6 +40,7 @@ powershell -ExecutionPolicy Bypass -File ".\deploy.ps1"
 1. Go to https://jenkins.moteo.fun
 2. Get initial password:
    ```powershell
+   cd "c:\Users\cbzer\DevOps_Final"
    ssh -i infrastructure\jenkins-key.pem ubuntu@<JENKINS_IP>
    docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
    ```

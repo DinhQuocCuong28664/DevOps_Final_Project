@@ -1,0 +1,915 @@
+# **FINAL EXAM PROJECT SPECIFICATION** **Production-Grade CI/CD System**
+
+**Course:** Software Deployment, Operations & Maintenance
+
+**Assessment Type:** Final Exam Project (50% of total course grade)
+
+**Duration:** 6 weeks
+
+**Team Size:** 2–3 students
+
+# **SECTION I. INTRODUCTION AND PURPOSE**
+
+
+The Final Exam Project requires students to design, implement, and demonstrate a **production-**
+
+**grade software delivery system**, comparable to those operated by professional DevOps teams
+
+in real-world enterprise environments. The focus of this assessment extends beyond application
+
+deployment to encompass the **entire lifecycle of software delivery**, including infrastructure
+
+provisioning, continuous integration, continuous delivery, security integration, and system
+
+observability.
+
+Students are expected to evolve the web application used in the mid-term project or replace it
+
+with an equivalent application of comparable complexity. While application functionality itself is
+
+not the primary assessment target, the system must be sufficiently realistic to support
+
+continuous deployment, monitoring, and scaling.
+
+This project adopts a progressive difficulty model. Teams may select different architectural
+
+approaches, each associated with a different maximum score for orchestration complexity.
+
+Regardless of architectural tier, all teams must deliver a stable, secure, observable system
+
+deployed via an automated CI/CD pipeline, accessible through a valid domain and HTTPS.
+
+
+1
+
+
+# **SECTION II. BACKGROUND SCENARIO**
+
+“Startup X” is entering a rapid growth phase and requires its DevOps team to standardize and
+
+harden the entire deployment process according to **production standards** . Although the current
+
+system functions correctly, it lacks several critical enterprise-level capabilities:
+
+  - End-to-end automation from source code to production.
+
+  - Integrated security throughout the deployment lifecycle (DevSecOps).
+
+  - Scalability to accommodate increasing user demand.
+
+  - Observability and early failure detection.
+
+
+Students assume the role of **DevOps Engineers** tasked with designing and implementing this
+
+production-ready deployment pipeline, infrastructure, and monitoring stack based on an
+
+architecture of their choosing.
+
+
+2
+
+
+# **SECTION III. ARCHITECTURE TIERS AND DEPLOYMENT MODELS**
+
+Each team must select **one deployment architecture tier** that reflects both their technical
+
+ambition and their ability to operate the system reliably under production-like conditions. The
+
+selected architecture tier determines the **maximum achievable score for the Architecture and**
+
+**Orchestration criterion** in the final assessment rubric.
+
+The architecture tiers are intentionally designed to reflect **increasing levels of operational**
+
+**maturity**, from basic host-based deployments to fully orchestrated container platforms. While
+
+higher tiers offer greater scoring potential, a lower-tier architecture may still achieve a strong
+
+overall project result if it is implemented correctly, securely, and supported by a robust CI/CD
+
+pipeline and monitoring system.
+
+Teams are strongly encouraged to incorporate **horizontal scaling and auto-scaling mechanisms**
+
+where applicable. However, the feasibility and expectations of scaling vary by tier and are defined
+
+explicitly below.
+
+
+**Tier 1 – Basic: Single-Server Non-Containerized Deployment**
+
+This tier represents the lowest level of architectural complexity and is intended only for teams
+
+facing significant technical constraints. The application is deployed directly on the operating
+
+system using process managers such as PM2 or systemd.
+
+This tier does not support horizontal scaling or auto scaling, and container-based isolation is
+
+absent. As a result, this tier caps the maximum achievable score for architecture and
+
+orchestration and is strongly discouraged unless justified by exceptional circumstances.
+
+
+**Tier 2 – Standard: Single-Server Containerized Deployment**
+
+This tier involves deploying a multi-container application on a single Linux server using Docker
+
+Compose. Although limited to a single host, this architecture must still reflect sound production
+
+practices.
+
+Teams must implement a reverse proxy container, persistent volumes for stateful components,
+
+and explicit separation between application services. While infrastructure-level scaling is not
+
+possible in this tier, container-level horizontal scaling (e.g., multiple replicas of a service) is
+
+expected and must be demonstrated where appropriate.
+
+This tier is suitable for teams focusing on mastering containerization fundamentals and CI/CD
+
+integration rather than distributed infrastructure management.
+
+
+3
+
+
+**Tier 3 – Advanced: Multi-Server Architecture with Centralized Load Balancing**
+
+In this tier, teams deploy their application across multiple Ubuntu servers without a container
+
+orchestration platform. Traffic distribution must be handled through a centralized load balancing
+
+mechanism.
+
+Teams are strongly encouraged to use the managed load balancer provided by their chosen cloud
+
+provider (e.g., AWS Application Load Balancer, Google Cloud Load Balancer, Azure Load
+
+Balancer). This approach is considered the preferred and higher-quality implementation. As an
+
+alternative, teams may deploy a dedicated Nginx or HAProxy server as a software-based load
+
+balancer; however, this option is regarded as a lower-priority solution.
+
+The architecture must demonstrate horizontal scaling across multiple servers, and teams are
+
+encouraged to integrate auto-scaling features where supported by the cloud provider. Clear
+
+separation of concerns between load balancer nodes and application nodes must be documented
+
+and justified.
+
+
+**Tier 4 – Advanced: Docker Swarm–Based Orchestration**
+
+This tier represents a container orchestration solution that, while less complex than Kubernetes,
+
+still provides cluster-level scheduling, service management, and scaling.
+
+Teams deploy their system using Docker Swarm in a multi-node configuration. Services must be
+
+defined declaratively, and the system should demonstrate container scheduling across nodes,
+
+service replication, and basic fault tolerance. Reverse proxying and ingress traffic may be handled
+
+via Swarm-compatible solutions.
+
+Horizontal scaling at the service level is strongly encouraged, and teams should demonstrate an
+
+understanding of how Swarm manages replicated services. This tier is suitable for teams seeking
+
+a balance between orchestration complexity and operational manageability.
+
+
+**Tier 5 – Expert: Kubernetes-Based Architecture**
+
+This tier represents a production-grade container orchestration environment and offers the
+
+highest potential score for architecture and orchestration.
+
+Teams deploy their application on a Kubernetes-based platform, such as upstream Kubernetes,
+
+K3s, or a managed service (e.g., EKS, GKE, AKS). The deployment must demonstrate a clear
+
+understanding of Kubernetes concepts, including but not limited to Deployments, Services,
+
+ConfigMaps, and Secrets. An Ingress Controller must be used to expose the application
+
+externally.
+
+
+4
+
+
+The system is expected to exhibit self-healing behaviour, and teams are strongly encouraged to
+
+implement horizontal pod autoscaling or other scaling mechanisms appropriate to their
+
+workload. Service decomposition into multiple independently deployable components is
+
+recommended where feasible. This tier most closely aligns with enterprise DevOps practices and
+
+therefore enables the highest orchestration score ceiling.
+
+
+**General Notes on Architecture Selection**
+
+Regardless of the chosen tier, all teams must deliver:
+
+  - a fully automated CI/CD pipeline,
+
+  - a production-accessible system secured with HTTPS,
+
+  - and a minimum level of observability.
+
+Higher-tier architectures provide opportunities for higher scores in orchestration and scalability,
+
+but they also impose higher expectations regarding correctness, stability, and operational clarity.
+
+Teams are advised to select an architecture that they can implement **reliably and defensibly**,
+
+rather than pursuing unnecessary complexity.
+
+
+5
+
+
+# **SECTION IV. TECHNICAL SPECIFICATIONS**
+
+This project is structured around three major technical domains that collectively define a
+
+production-grade software delivery system: **Infrastructure Provisioning**, **Continuous Integration**
+
+**and Continuous Delivery (CI/CD)**, and **Monitoring & Observability** . Each domain must be
+
+implemented in a manner consistent with the selected architecture tier and must be documented
+
+comprehensively in the technical report, demonstrated in the video submission, and validated
+
+during the live presentation.
+
+While the complexity of implementation may vary across tiers, all teams—regardless of
+
+architectural choice—are required to meet the **minimum production standards** defined in this
+
+section.
+
+
+**4.1 Infrastructure Provisioning and Environment Setup**
+
+The objective of this component is to establish a stable, secure, and production-ready execution
+
+environment for the application and its supporting services. All deployments must be hosted on
+
+a **real cloud provider** (e.g., AWS, Azure, Google Cloud, Oracle Cloud, DigitalOcean) and must not
+
+rely on local or simulated environments.
+
+Teams may adopt either an **Infrastructure as Code (IaC)** approach or **manual provisioning**, with
+
+differing expectations and scoring implications.
+
+
+**A. Infrastructure as Code (IaC) – Recommended Approach**
+
+Teams using Infrastructure as Code must provision and configure their infrastructure using tools
+
+such as **Terraform** for resource creation and **Ansible** for system configuration. This includes, but
+
+is not limited to:
+
+  - provisioning compute resources and networking components,
+
+  - defining security groups or firewall rules,
+
+  - configuring storage resources,
+
+  - installing required system dependencies,
+
+  - preparing the runtime environment for application deployment.
+
+All infrastructure definitions must be **idempotent**, meaning that repeated executions of the same
+
+configuration produce consistent results without unintended side effects. Teams must provide
+
+verifiable evidence of idempotency through logs, command outputs, or screenshots. This
+
+
+6
+
+
+approach reflects industry best practices and enables the highest attainable score for
+
+infrastructure quality.
+
+
+**B. Manual Infrastructure Provisioning**
+
+Teams may alternatively provision infrastructure manually using a cloud provider’s web interface
+
+and configure servers via SSH. While this approach is acceptable, it is regarded as less mature
+
+than IaC and therefore limits the maximum score achievable in this component.
+
+Regardless of provisioning method, the following **minimum requirements apply** :
+
+  - The system must run on a publicly accessible cloud server.
+
+  - A registered domain name must resolve to the deployed system.
+
+  - HTTPS must be configured using Let’s Encrypt or an equivalent certificate authority.
+
+  - DNS configuration may be performed manually through the domain registrar’s interface.
+
+  - Automation of HTTPS provisioning and renewal is encouraged but not mandatory.
+
+
+**4.2 Continuous Integration and Continuous Delivery (CI/CD)**
+
+
+The CI/CD pipeline constitutes the **core of the final project** and must demonstrate a fully
+
+automated path from source code changes to a production deployment. Teams may use **GitHub**
+
+**Actions, GitLab CI, or Jenkins**, provided that the pipeline is clearly defined, reproducible, and
+
+aligned with production practices.
+
+The pipeline must be divided conceptually and functionally into **Continuous Integration (CI)** and
+
+**Continuous Delivery (CD)** stages.
+
+
+**4.2.1 Continuous Integration (CI)**
+
+The CI stage must execute automatically upon code changes and include the following mandatory
+
+steps:
+
+  - **Code Quality and Linting**
+
+The pipeline must retrieve the source code and execute linting or static analysis tools
+
+appropriate to the technology stack, ensuring compliance with basic coding standards.
+
+  - **Dependency Management and Caching**
+
+Dependencies (e.g., node_modules, Maven repositories, Python packages) must be
+
+cached to reduce build time and demonstrate an understanding of pipeline optimization.
+
+  - **Build Artifacts**
+
+
+7
+
+
+The application must be built into an appropriate artifact, such as a static bundle, JAR file,
+
+or binary. The build process must be reproducible and free of manual intervention.
+
+  - **Security Scanning**
+
+A security scanning stage must be integrated using tools such as Trivy, Snyk, SonarQube,
+
+or equivalent. The pipeline must fail when critical or high-severity vulnerabilities are
+
+detected. Teams may implement allowlists or documented risk acceptance strategies,
+
+which must be justified and explained in the technical report.
+
+  - **Container Image Build and Registry Push**
+
+For container-based architectures (Tier 2–Tier 5), the CI pipeline must build container
+
+images and push them to a container registry. Images must use **explicit version tags** (e.g.,
+
+semantic versions or commit hashes) and must not rely on the latest tag.
+
+
+**4.2.2 Continuous Delivery (CD)**
+
+The CD stage is responsible for deploying validated artifacts to the production environment. At a
+
+minimum, the CD pipeline must:
+
+  - Retrieve the correct versioned artifact or container image.
+
+  - Update deployment configurations appropriate to the selected architecture tier.
+
+  - Deploy the new version to the production environment automatically.
+
+  - Restart or update services in a controlled and predictable manner.
+
+For teams operating both **staging and production environments**, the pipeline must include:
+
+separate deployment targets,
+
+a manual approval gate or equivalent control,
+
+and a documented deployment strategy (e.g., recreate, rolling update).
+
+Advanced deployment strategies such as blue–green or canary releases are encouraged but not
+
+mandatory.
+
+
+**4.3 Architecture-Specific Deployment Requirements**
+
+Deployment practices must align with the selected architecture tier.
+
+  - **Tier 1 (Single-Server, Non-Containerized):** Applications must be managed via systemd or
+
+PM2 and configured to restart automatically after server reboot.
+
+  - **Tier 2 (Single-Server, Containerized):** Applications must run as multi-container systems
+
+using Docker Compose, including persistent volumes and service-level scaling.
+
+
+8
+
+
+  - **Tier 3 (Multi-Server Architecture):** Traffic must be distributed using a **managed cloud**
+
+**load balancer** whenever available. Software load balancers (e.g., Nginx) are acceptable
+
+only as secondary alternatives. Horizontal scaling across servers is expected.
+
+  - **Tier 4 (Docker Swarm):** Services must be deployed in a Swarm cluster with replicated
+
+services and demonstrated cluster-level scheduling.
+
+  - **Tier 5 (Kubernetes):** Deployments must leverage Kubernetes primitives such as
+
+Deployments, Services, and Ingress. Autoscaling and self-healing behavior are strongly
+
+encouraged.
+
+
+**4.4 Monitoring and Observability**
+
+All deployed systems must support a minimum level of observability to enable runtime inspection
+
+and operational awareness.
+
+**Minimum Requirements** :
+
+  - Metrics collection using Prometheus or an equivalent system.
+
+  - Grafana dashboards displaying CPU usage, memory usage, and service/container or pod
+
+status.
+
+**Advanced Observability (Encouraged)** :
+
+  - Alerting via Alertmanager or equivalent mechanisms.
+
+  - Centralized logging using tools such as Loki or ELK.
+
+  - Custom application-level metrics (e.g., request rates, error counts).
+
+
+Monitoring components must be actively demonstrated and not merely installed.
+
+
+**4.5 Documentation and Evidence Requirements**
+
+All technical implementations described in this section must be:
+
+  - fully documented in the technical report,
+
+  - supported by screenshots, logs, or configuration excerpts,
+
+  - and demonstrated in the video and live presentation.
+
+
+Configurations, pipeline definitions, and infrastructure descriptions must correspond exactly to
+
+the deployed system.
+
+
+9
+
+
+# **SECTION V. MANDATORY DEMONSTRATION SCENARIO**
+
+As part of the final assessment, each team must perform a **live or recorded end-to-end**
+
+**demonstration** that validates the correctness, automation, and operational reliability of the
+
+implemented CI/CD system. The demonstration must follow the sequence defined in this section
+
+and must reflect the **actual deployed production environment**, not a simulated or pre-prepared
+
+setup.
+
+The purpose of this demonstration is to verify that the system responds correctly to real changes
+
+in source code, that the CI/CD pipeline operates autonomously, and that the deployed system is
+
+observable and resilient under runtime conditions.
+
+
+**5.1 Source Code Modification**
+
+The demonstration must begin with a **visible and meaningful change** to the application source
+
+code. This change must be sufficiently observable to confirm that a new version has been
+
+deployed.
+
+Examples of acceptable changes include, but are not limited to:
+
+  - modifying visible text or layout in the user interface,
+
+  - adding or changing a simple application feature,
+
+  - altering configuration values that affect runtime behaviour.
+
+  - The change must be made directly in the version-controlled source code repository and
+
+must not be pre-staged.
+
+
+**5.2 Commit and Push to the Repository**
+
+After the source code modification, the team must commit and push the change to the remote
+
+repository.
+
+During this step, students must demonstrate:
+
+  - a clear commit message that reflects the nature of the change,
+
+  - the correct target branch triggering the CI/CD pipeline,
+
+  - successful synchronization with the remote repository.
+
+This step confirms that the pipeline is triggered by **source-of-truth events** rather than manual
+
+intervention.
+
+
+**5.3 Continuous Integration Pipeline Execution**
+
+
+10
+
+
+Once the commit is pushed, the CI pipeline must start automatically. The demonstration must
+
+clearly show the execution and outcome of each mandatory CI stage, including:
+
+  - **Code linting and quality checks**, confirming adherence to coding standards.
+
+  - **Dependency restoration and caching**, demonstrating pipeline optimization.
+
+  - **Build stage**, producing a reproducible application artifact.
+
+  - **Security scanning**, showing vulnerability detection and enforcement of fail conditions
+
+where applicable.
+
+  - **Container image build and registry push**, for container-based architectures, including
+
+evidence of correct version tagging.
+
+Any failure or warning encountered during this stage must be explained clearly during the
+
+demonstration.
+
+
+**5.4 Continuous Delivery and Deployment**
+
+Upon successful completion of the CI stage, the CD pipeline must proceed automatically to
+
+deploy the new version to the production environment.
+
+The demonstration must show:
+
+  - retrieval of the correct artifact or container image version,
+
+  - application of updated deployment configurations,
+
+  - execution of the deployment process appropriate to the selected architecture tier,
+
+  - controlled service restart or rolling update behaviour, where applicable.
+
+For teams using both staging and production environments, the demonstration must also show
+
+the approval mechanism and subsequent promotion to production.
+
+
+**5.5 Verification of Application Update**
+
+After deployment, the team must verify that the updated version is running in production by:
+
+  - accessing the application through the public domain name,
+
+  - confirming that the visible change introduced in Section 5.1 is present,
+
+  - verifying that the system is accessible exclusively via HTTPS,
+
+  - demonstrating correct application behaviour under normal use.
+
+This step validates the end-to-end delivery path from source code to production.
+
+
+**5.6 Monitoring and Observability Validation**
+
+
+11
+
+
+The demonstration must include an inspection of the monitoring system to confirm that the
+
+deployed application is observable.
+
+At a minimum, teams must:
+
+  - open the Grafana dashboard,
+
+  - show real-time metrics such as CPU usage, memory consumption, and service/container
+
+or pod status,
+
+  - explain how these metrics reflect the current state of the deployed system.
+
+Metrics must correspond to the running production system and not to a local or test
+
+environment.
+
+
+**5.7 Failure Simulation and System Behaviour**
+
+To demonstrate operational resilience, the team must simulate a failure scenario appropriate to
+
+the selected architecture tier.
+
+Acceptable failure simulations include:
+
+  - stopping or restarting a container or service,
+
+  - terminating a process or pod,
+
+  - simulating a node-level failure in clustered environments.
+
+The demonstration must show:
+
+  - how the system responds to the failure,
+
+  - whether services recover automatically,
+
+  - how the failure is reflected in monitoring dashboards.
+
+
+If alerting mechanisms have been implemented, teams should demonstrate the corresponding
+
+alert notification. If alerting is not implemented, the absence must be explained explicitly.
+
+
+12
+
+
+# **SECTION VI. SUBMISSION DELIVERABLES**
+
+Each team must submit a **single compressed archive (.zip)** containing all deliverables listed
+
+below. All submitted materials must correspond exactly to the deployed production system
+
+demonstrated in the video and live presentation.
+
+
+**6.1. Project Repository and Technical Artefacts**
+
+  - **Complete application source code:** The final version of the application used in the
+
+project, reflecting the deployed production system.
+
+  - **Infrastructure provisioning artefacts:** Terraform files (if IaC is used), Ansible playbooks,
+
+or equivalent automation scripts used to provision and configure the environment.
+
+  - **CI/CD pipeline configuration:** Pipeline definitions (GitHub Actions, GitLab CI, or Jenkins)
+
+showing all CI and CD stages described in the specification.
+
+  - **Deployment artefacts (tier-dependent):** Dockerfiles, Docker Compose files, Swarm
+
+stacks, or Kubernetes manifests corresponding to the selected architecture tier.
+
+  - **Monitoring and observability configuration:** Prometheus configuration, Grafana
+
+dashboards (exported JSON preferred), and alerting/logging configuration if
+
+implemented.
+
+_All files must represent the final working state of the system and must not contain hard-coded_
+
+_secrets._
+
+
+**6.2. Technical Report (PDF)**
+
+  - **Report formatted using the official academic template:** The report must be written in
+
+formal academic English and follow the lecturer’s prescribed structure.
+
+  - **Five required chapters included:**
+
+`o` Overview & System Architecture
+
+`o` Infrastructure Provisioning
+
+`o` CI/CD Pipeline Design
+
+`o` Deployment & Orchestration
+
+`o` Monitoring, Observability & Lessons Learned
+
+  - **Architecture diagrams and evidence embedded:** Diagrams, configuration excerpts,
+
+screenshots, and logs must be referenced clearly within the text.
+
+
+13
+
+
+_The report must explain design decisions and trade-offs, not merely describe commands._
+
+
+**6.3. Video Demonstration**
+
+  - **Full end-to-end demonstration recorded:** The video must follow exactly the mandatory
+
+demo scenario defined in Section V.
+
+  - **CI, CD, deployment, monitoring, and failure behaviour shown:** All major system
+
+behaviours must be observable and explained during the video.
+
+  - **Video reflects the real production environment:** Mocked outputs, pre-recorded
+
+pipelines, or simulated deployments are not acceptable.
+
+
+**6.4. Production Website URL**
+
+  - **Public domain URL provided:** The URL must resolve to the deployed system.
+
+  - **HTTPS verified:** A valid TLS certificate must be active at the time of evaluation.
+
+  - **System remains accessible during grading:** The deployed system must remain
+
+operational throughout the assessment period.
+
+
+**6.5. Supporting Links and References**
+
+  - **Source code repository link:** Used for verification of implementation and pipeline
+
+configuration.
+
+  - **Container registry link (if applicable):** Links to Docker Hub or equivalent registries used
+
+by the CI/CD pipeline.
+
+  - **Monitoring dashboards (if externally accessible):** Read-only access may be provided
+
+where applicable.
+
+
+14
+
+
+# **SECTION VII. EXTRA CREDIT**
+
+To encourage advanced experimentation and provide opportunities for partial score recovery,
+
+teams may earn **additional bonus points** by implementing production-oriented features beyond
+
+the mandatory requirements.
+
+Each bonus item is evaluated independently and may contribute **0.25 to 0.5 points**, depending
+
+on implementation quality and level of integration. Bonus points are awarded **only if the feature**
+
+**is functional, demonstrated, and documented** .
+
+All bonus features must appear in **both** :
+
+  - the **video demo and/or live presentation**, and
+
+  - the **technical report** .
+
+The total bonus score is capped (as defined by the lecturer) and cannot replace missing
+
+mandatory requirements.
+
+
+**7.1 Self-Hosted CI/CD Infrastructure**
+
+Teams may earn bonus points by deploying and operating their own CI/CD platform (e.g., self
+hosted GitLab or Jenkins).
+
+Requirements:
+
+  - CI/CD server deployed on a **separate machine**,
+
+  - accessible via a **custom domain**,
+
+  - secured with **HTTPS**,
+
+  - actively used to run the project pipeline.
+
+**Bonus:** 0.25–0.5 points, based on stability and completeness.
+
+
+**7.2 Multi-Environment Deployment with Approval Gates**
+
+Teams may implement **two independent environments** (e.g., staging and production), even
+
+when not required by their selected tier.
+
+Requirements:
+
+  - automatic deployment to staging after CI success,
+
+  - **manual approval step** before production deployment,
+
+  - consistent artifacts and pipeline logic across environments.
+
+
+Manual approval is **not required** for teams using a single environment.
+
+
+15
+
+
+**Bonus:** 0.25–0.5 points, based on correctness and clarity.
+
+
+**7.3 Advanced Deployment Strategies**
+
+Teams may implement advanced deployment strategies such as:
+
+  - rolling updates,
+
+  - blue–green deployment,
+
+  - basic canary releases.
+
+The strategy must be:
+
+  - correctly integrated into the deployment pipeline,
+
+  - demonstrated during the demo,
+
+  - explained clearly in the report.
+
+
+**Bonus:** 0.25–0.5 points, depending on execution quality.
+
+
+**7.4 Automated Rollback Mechanisms**
+
+Teams may implement automated or semi-automated rollback behaviour triggered by:
+
+  - failed health checks,
+
+  - deployment errors,
+
+  - pipeline failures.
+
+
+The rollback mechanism must:
+
+  - restore a known stable version,
+
+  - be observable in logs or monitoring tools,
+
+  - be explained and demonstrated.
+
+
+**Bonus:** 0.25–0.5 points, based on reliability and evidence.
+
+
+**7.5 Bonus Award Conditions**
+
+  - Bonus features must reach at least a **competent implementation level** .
+
+  - Incomplete, unstable, or undocumented features will not receive bonus points.
+
+  - Bonus points cannot compensate for the absence of core project requirements.
+
+  - The lecturer reserves the right to approve or reject bonus claims based on evidence.
+
+
+
+16
+
+

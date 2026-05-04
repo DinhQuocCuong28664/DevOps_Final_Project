@@ -8,6 +8,9 @@ const { register, metricsMiddleware } = require('./metrics');
 
 const productRoutes  = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const authRoutes     = require('./routes/authRoutes');
+const cartRoutes     = require('./routes/cartRoutes');
+const orderRoutes    = require('./routes/orderRoutes');
 const dataSource     = require('./services/dataSource');
 const uiRoutes       = require('./routes/uiRoutes');
 
@@ -29,6 +32,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', uiRoutes);
 app.use('/products', productRoutes);
 app.use('/categories', categoryRoutes);
+app.use('/auth', authRoutes);
+app.use('/cart', cartRoutes);
+app.use('/orders', orderRoutes);
 
 // ============================================================
 // Health Check Endpoint - used by K8s readinessProbe / livenessProbe
@@ -36,11 +42,8 @@ app.use('/categories', categoryRoutes);
 // ============================================================
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState;
-  // 0=disconnected, 1=connected, 2=connecting, 3=disconnecting
   const dbMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
 
-  // App is healthy if: MongoDB connected OR using in-memory fallback (app still functional)
-  // Only degraded if: was connected before but lost connection mid-run
   const isHealthy = dbStatus === 1 || !dataSource.isMongo;
 
   const health = {
@@ -76,7 +79,6 @@ app.get('/metrics', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 async function start() {
-  // Only create uploads directory when NOT using S3 (local dev mode)
   if (!process.env.S3_BUCKET_NAME) {
     const uploadsDir = path.join(__dirname, 'public', 'uploads');
     if (!fs.existsSync(uploadsDir)) {
@@ -85,7 +87,6 @@ async function start() {
     }
   }
 
-  // Try to connect to MongoDB once with 3s timeout
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/products_db';
   let usingMongo = false;
   try {
@@ -107,6 +108,9 @@ async function start() {
   });
 }
 
-start();
+// Only auto-start if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}
 
 module.exports = app;

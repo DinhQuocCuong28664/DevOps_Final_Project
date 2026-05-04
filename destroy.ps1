@@ -59,6 +59,7 @@ kubectl delete -f kubernetes/mongodb-pvc.yaml        --ignore-not-found
 # Staging resources
 kubectl delete -f kubernetes/staging/deployment.yaml --ignore-not-found
 kubectl delete -f kubernetes/staging/service.yaml    --ignore-not-found
+kubectl delete namespace staging                     --ignore-not-found
 
 # ============================================================
 # STEP 3: Delete Namespaces

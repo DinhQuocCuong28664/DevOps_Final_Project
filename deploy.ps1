@@ -136,10 +136,17 @@ kubectl apply -f kubernetes/mongodb-deployment.yaml
 kubectl apply -f kubernetes/mongodb-service.yaml
 Write-Host "  [OK] MongoDB applied" -ForegroundColor Green
 
-# Application (production)
-# IMPORTANT: Replace IMAGE_TAG_PLACEHOLDER with a real tag for initial bootstrap
-# The CI/CD pipeline normally does this via sed, but for first-time deploy we use 'latest'
-(Get-Content kubernetes/deployment.yaml) -replace 'IMAGE_TAG_PLACEHOLDER', 'latest' | kubectl apply -f -
+# Application (staging) — deploy first for validation
+# IMPORTANT: Replace IMAGE_TAG_PLACEHOLDER with the Git commit SHA
+# STANDARD RULE: Images must use explicit version tags (commit SHA), NEVER 'latest'
+$gitSha = git rev-parse --short HEAD
+Write-Host "  Using image tag: $gitSha (from Git commit SHA)" -ForegroundColor Cyan
+(Get-Content kubernetes/staging/deployment.yaml) -replace 'IMAGE_TAG_PLACEHOLDER', $gitSha | kubectl apply -f -
+kubectl apply -f kubernetes/staging/service.yaml
+Write-Host "  [OK] Application (staging) applied" -ForegroundColor Green
+
+# Application (production) — deploy after staging
+(Get-Content kubernetes/deployment.yaml) -replace 'IMAGE_TAG_PLACEHOLDER', $gitSha | kubectl apply -f -
 kubectl apply -f kubernetes/service.yaml
 kubectl apply -f kubernetes/hpa.yaml
 Write-Host "  [OK] Application (production) applied" -ForegroundColor Green
