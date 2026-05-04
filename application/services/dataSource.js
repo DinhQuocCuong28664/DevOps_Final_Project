@@ -22,17 +22,6 @@ function createSeedCategories() {
   ];
 }
 
-// Map product to category name
-function getCategoryName(productName) {
-  if (productName.includes('iPhone')) return 'Smartphones';
-  if (productName.includes('MacBook')) return 'Laptops';
-  if (productName.includes('iPad')) return 'Tablets';
-  if (productName.includes('Watch')) return 'Wearables';
-  if (productName.includes('AirPods')) return 'Audio';
-  if (productName.includes('HomePod')) return 'Smart Home';
-  return 'Smartphones';
-}
-
 function createAppleProducts() {
   const categories = inMemoryCategories;
   const getCatId = (name) => {
@@ -252,7 +241,7 @@ async function getAll({ page = 1, limit = 20, search, category, sortBy, order } 
       filter.category = category;
     }
 
-    let sort = {};
+    const sort = {};
     if (sortBy === 'price') sort.price = order === 'desc' ? -1 : 1;
     else if (sortBy === 'name') sort.name = order === 'desc' ? -1 : 1;
     else if (sortBy === 'createdAt') sort.createdAt = order === 'desc' ? -1 : 1;
@@ -346,7 +335,7 @@ async function replace(id, payload) {
   const prev = inMemory[idx];
   if (payload.imageUrl && prev && prev.imageUrl && prev.imageUrl.startsWith('/uploads/')) {
     const filePath = path.join(__dirname, '..', 'public', prev.imageUrl.substring(1));
-    try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
+    try { await fs.unlink(filePath); } catch { /* ignore */ }
   }
   const item = { id, ...payload };
   inMemory[idx] = item;
@@ -359,7 +348,7 @@ async function patch(id, payload) {
       const prevDoc = await ProductModel.findById(id).lean();
       if (prevDoc && prevDoc.imageUrl && prevDoc.imageUrl.startsWith('/uploads/')) {
         const filePath = path.join(__dirname, '..', 'public', prevDoc.imageUrl.substring(1));
-        try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
+        try { await fs.unlink(filePath); } catch { /* ignore */ }
       }
     }
     const doc = await ProductModel.findByIdAndUpdate(id, { $set: payload }, { new: true, runValidators: true }).lean();
@@ -369,7 +358,7 @@ async function patch(id, payload) {
   if (!item) return null;
   if (payload.imageUrl && item.imageUrl && item.imageUrl.startsWith('/uploads/')) {
     const filePath = path.join(__dirname, '..', 'public', item.imageUrl.substring(1));
-    try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
+    try { await fs.unlink(filePath); } catch { /* ignore */ }
   }
   Object.assign(item, payload);
   return item;
@@ -380,7 +369,7 @@ async function remove(id) {
     const doc = await ProductModel.findByIdAndDelete(id).lean();
     if (doc && doc.imageUrl && doc.imageUrl.startsWith('/uploads/')) {
       const filePath = path.join(__dirname, '..', 'public', doc.imageUrl.substring(1));
-      try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
+      try { await fs.unlink(filePath); } catch { /* ignore */ }
     }
     return toDTO(doc);
   }
@@ -389,7 +378,7 @@ async function remove(id) {
   const [deleted] = inMemory.splice(idx, 1);
   if (deleted && deleted.imageUrl && deleted.imageUrl.startsWith('/uploads/')) {
     const filePath = path.join(__dirname, '..', 'public', deleted.imageUrl.substring(1));
-    try { await fs.unlink(filePath); } catch (e) { /* ignore */ }
+    try { await fs.unlink(filePath); } catch { /* ignore */ }
   }
   return deleted;
 }

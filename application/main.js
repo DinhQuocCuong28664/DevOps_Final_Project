@@ -95,7 +95,7 @@ async function start() {
     });
     usingMongo = true;
     console.log('Connected to MongoDB — using mongodb as data source.');
-  } catch (err) {
+  } catch {
     usingMongo = false;
     console.log('Failed to connect to MongoDB within 3s — falling back to in-memory database.');
   }
