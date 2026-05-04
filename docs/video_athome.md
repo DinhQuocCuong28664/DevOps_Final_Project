@@ -7,6 +7,7 @@
 | **Course** | Software Deployment, Operations & Maintenance |
 | **Architecture** | Tier 5 – Expert: Kubernetes-Based Architecture (Amazon EKS) |
 | **Production URL** | [https://www.moteo.fun](https://www.moteo.fun) |
+| **Staging URL** | [https://staging.moteo.fun](https://staging.moteo.fun) |
 | **Repository** | [github.com/DinhQuocCuong28664/DevOps_Final_Project](https://github.com/DinhQuocCuong28664/DevOps_Final_Project) |
 | **Docker Hub** | [hub.docker.com/r/dinhquoccuong286/devops-final-app](https://hub.docker.com/r/dinhquoccuong286/devops-final-app) |
 | **Jenkins** | [https://jenkins.moteo.fun](https://jenkins.moteo.fun) |
@@ -59,6 +60,7 @@ kubectl get pods -n monitoring
 | **Terminal 1** | PowerShell ở `c:\Users\cbzer\DevOps_Final` | Để chạy lệnh |
 | **Terminal 2** | `kubectl get pods -n production -w` | Watch pods |
 | **Browser Tab 1** | `https://www.moteo.fun` | Production URL |
+| **Browser Tab 1B** | `https://staging.moteo.fun` | Staging URL |
 | **Browser Tab 2** | GitHub → Actions → Workflow runs | CI/CD pipeline |
 | **Browser Tab 3** | Grafana `http://localhost:3001` | Monitoring |
 | **Browser Tab 4** | Alertmanager `http://localhost:9093` | Alerts |
@@ -213,6 +215,7 @@ Show quá trình deploy qua 2 môi trường: Staging → Production.
 # Bước 2: Kiểm tra staging deployment
 kubectl get pods -n staging
 kubectl rollout status deployment -n staging
+start https://staging.moteo.fun
 # Output: deployment "devops-final-deployment" successfully rolled out
 
 # Bước 3: Manual Approval - Mở GitHub → Environment "production"
@@ -233,6 +236,7 @@ kubectl rollout status deployment -n production
 #   - kubectl apply -f kubernetes/staging/namespace.yaml
 #   - kubectl apply -f kubernetes/staging/deployment.yaml
 #   - kubectl apply -f kubernetes/staging/service.yaml
+#   - kubectl apply -f kubernetes/staging/ingress-ssl.yaml
 #   - kubectl rollout status deployment -n staging
 
 # deploy-production job (sau manual approve):
@@ -248,6 +252,7 @@ kubectl rollout status deployment -n production
 - **Màn hình**: Browser (GitHub Actions) → Terminal (kubectl)
 - **Thuyết minh**: 
   - "CD pipeline tự động deploy lên staging trước."
+  - "Staging có URL riêng https://staging.moteo.fun để kiểm tra trước khi approve production."
   - "Sau đó cần manual approve từ reviewer để deploy lên production — đây là approval gate đảm bảo an toàn."
   - "Production dùng RollingUpdate strategy với maxUnavailable=0 để zero-downtime deployment."
 

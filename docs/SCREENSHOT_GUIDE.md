@@ -54,7 +54,7 @@
 
 **Figure 6: Hostinger DNS Records**
 - **Step 1**: Log in to Hostinger → DNS Zone Editor
-- **Step 2**: Show CNAME for `www.moteo.fun` and A record for `jenkins.moteo.fun`
+- **Step 2**: Show CNAME records for `www.moteo.fun` and `staging.moteo.fun`, plus A record for `jenkins.moteo.fun`
 - **Screenshot**: DNS records table
 - **Save as**: `images/figure06-hostinger-dns.png`
 

@@ -106,6 +106,7 @@ jobs:
           # Deploy staging app
           kubectl apply -f kubernetes/staging/deployment.yaml
           kubectl apply -f kubernetes/staging/service.yaml
+          kubectl apply -f kubernetes/staging/ingress-ssl.yaml
 
       - name: Wait for Staging Rollout
         run: |

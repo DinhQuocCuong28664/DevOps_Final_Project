@@ -224,7 +224,8 @@ if ($alertEmailConfig) {
         "--set", "alertmanager.config.route.receiver=email-alerts",
         "--set", "alertmanager.config.receivers[0].name=email-alerts",
         "--set", "alertmanager.config.receivers[0].email_configs[0].to=$(Escape-HelmValue $alertEmailConfig.AlertTo)",
-        "--set", "alertmanager.config.receivers[0].email_configs[0].send_resolved=true"
+        "--set", "alertmanager.config.receivers[0].email_configs[0].send_resolved=true",
+        "--set", "alertmanager.config.receivers[1].name=null"
     )
 }
 else {
@@ -267,6 +268,7 @@ $gitSha = git rev-parse --short HEAD
 Write-Host "  Using image tag: $gitSha (from Git commit SHA)" -ForegroundColor Cyan
 (Get-Content kubernetes/staging/deployment.yaml) -replace 'IMAGE_TAG_PLACEHOLDER', $gitSha | kubectl apply -f -
 kubectl apply -f kubernetes/staging/service.yaml
+kubectl apply -f kubernetes/staging/ingress-ssl.yaml
 Write-Host "  [OK] Application (staging) applied" -ForegroundColor Green
 
 # Application (production) — deploy after staging
@@ -291,14 +293,15 @@ Write-Host "  ACTION REQUIRED: Set DNS records on Hostinger" -ForegroundColor Re
 Write-Host "  Go to: https://hpanel.hostinger.com -> Domains -> moteo.fun -> DNS Records" -ForegroundColor Red
 Write-Host ""
 Write-Host "  1. CNAME  www      -> $elbHostname" -ForegroundColor Yellow
-Write-Host "  2. A      jenkins  -> $jenkinsIp"   -ForegroundColor Yellow
+Write-Host "  2. CNAME  staging  -> $elbHostname" -ForegroundColor Yellow
+Write-Host "  3. A      jenkins  -> $jenkinsIp"   -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  (Delete old conflicting records first if any)" -ForegroundColor Gray
 Write-Host "  ============================================" -ForegroundColor Red
 Write-Host ""
 
 # Wait for user to confirm DNS is set
-Read-Host "  Press ENTER after you have set both DNS records..."
+Read-Host "  Press ENTER after you have set all DNS records..."
 
 # Poll until jenkins.moteo.fun resolves to the correct IP
 Write-Host "  Waiting for jenkins.moteo.fun DNS to propagate..." -ForegroundColor Cyan

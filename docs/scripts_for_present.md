@@ -3,6 +3,7 @@
 **Target duration:** 12-15 minutes  
 **Project tier:** Tier 5 - Expert Kubernetes-Based Architecture on Amazon EKS  
 **Production URL:** https://www.moteo.fun  
+**Staging URL:** https://staging.moteo.fun
 **Jenkins URL:** https://jenkins.moteo.fun
 
 ## Slide 1 - Title
@@ -13,7 +14,7 @@
 
 Good morning/afternoon. We are presenting our final project, **Production-Grade CI/CD System for Startup X**. This project implements a Tier 5 Kubernetes-based deployment on Amazon EKS with automated CI/CD, infrastructure as code, HTTPS, monitoring, alerting, and centralized logging.
 
-Our team members are Đinh Quốc Cường, Nguyễn Quang Trường, and Phạm Minh Hào. The system is deployed publicly at `https://www.moteo.fun`, and our self-hosted Jenkins service is available at `https://jenkins.moteo.fun`.
+Our team members are Đinh Quốc Cường, Nguyễn Quang Trường, and Phạm Minh Hào. The system is deployed publicly at `https://www.moteo.fun`, the staging environment is available at `https://staging.moteo.fun`, and our self-hosted Jenkins service is available at `https://jenkins.moteo.fun`.
 
 The main objective was not only to deploy a web application, but to build an operationally mature delivery system that is reproducible, secure, scalable, observable, and aligned with production DevOps practices.
 
@@ -39,7 +40,7 @@ This slide is important because the grading note says that implemented features 
 **Talking points:**
 
 - Public cloud: AWS.
-- Domain and HTTPS: `www.moteo.fun` with Cert-Manager and Let's Encrypt.
+- Domain and HTTPS: `www.moteo.fun` and `staging.moteo.fun` with Cert-Manager and Let's Encrypt.
 - CI requirements: lint, cache, build, scan, versioned Docker image.
 - CD requirements: staged rollout, production approval, controlled deployment.
 - Observability requirements: CPU, memory, pod status, logs, alerts.
@@ -93,7 +94,7 @@ The primary CI/CD system is GitHub Actions. It is triggered automatically on pus
 
 The pipeline has three jobs. The first job is `build-and-push`. It checks out the source code, configures Node.js 18 with npm caching, installs dependencies using `npm ci`, runs ESLint, runs Trivy security scanning, builds a Docker image, and pushes that image to Docker Hub. Every image is tagged with the short Git commit SHA. We intentionally do not rely on the `latest` tag because commit-SHA tags make deployments traceable and reproducible.
 
-The second job deploys automatically to staging. It connects to EKS, substitutes the current image tag into the Kubernetes manifests, applies the staging deployment, and waits for rollout completion.
+The second job deploys automatically to staging. It connects to EKS, substitutes the current image tag into the Kubernetes manifests, applies the staging deployment and Ingress, waits for rollout completion, and exposes the candidate release at `https://staging.moteo.fun`.
 
 The third job deploys to production after manual approval through GitHub Environments. After applying production manifests, the pipeline checks rollout health. If the rollout fails, it automatically executes `kubectl rollout undo`, restoring the previous stable ReplicaSet.
 
@@ -134,7 +135,7 @@ Autoscaling is handled by HPA using CPU and memory metrics. The HPA scales from 
 
 Security is implemented across the delivery and runtime layers. At the CI layer, Trivy scans the application filesystem and fails the pipeline for high or critical vulnerabilities. Docker images are built with a multi-stage Dockerfile and the application runs as a non-root `appuser` in the final container.
 
-For external access, we use Hostinger DNS for the `moteo.fun` domain. The production application uses a CNAME record from `www.moteo.fun` to the AWS load balancer created by NGINX Ingress. Jenkins uses an A record from `jenkins.moteo.fun` to its Elastic IP.
+For external access, we use Hostinger DNS for the `moteo.fun` domain. The production application uses a CNAME record from `www.moteo.fun` to the AWS load balancer created by NGINX Ingress, and staging uses `staging.moteo.fun` on the same load balancer with host-based routing. Jenkins uses an A record from `jenkins.moteo.fun` to its Elastic IP.
 
 HTTPS for the Kubernetes application is automated using Cert-Manager and Let's Encrypt. Cert-Manager solves the ACME HTTP-01 challenge and stores the certificate in the `moteo-tls-secret` Kubernetes Secret. Jenkins HTTPS is handled separately by Nginx and Certbot on the EC2 instance.
 
@@ -176,7 +177,7 @@ The demo follows the official mandatory scenario step by step.
 
 First, we make a visible source code change, such as modifying text in the UI. Second, we commit and push that change to the `main` branch. Third, GitHub Actions starts automatically and runs the CI stages: dependency installation with cache, ESLint, Trivy scan, Docker build, and Docker Hub push with a commit-SHA tag.
 
-Fourth, the staging deployment runs automatically and waits for rollout success. Fifth, we approve the production deployment through the GitHub Environment approval gate. Sixth, the production deployment performs a rolling update and health check. Seventh, we open `https://www.moteo.fun` and verify that the new UI change is live over HTTPS.
+Fourth, the staging deployment runs automatically and waits for rollout success, then we verify `https://staging.moteo.fun`. Fifth, we approve the production deployment through the GitHub Environment approval gate. Sixth, the production deployment performs a rolling update and health check. Seventh, we open `https://www.moteo.fun` and verify that the new UI change is live over HTTPS.
 
 After deployment validation, we open Grafana and explain CPU, memory, and pod status dashboards. Finally, we simulate failure by deleting a production pod. Kubernetes automatically recreates the pod, and we show the recovery in `kubectl`, Grafana, and Alertmanager if an alert fires.
 

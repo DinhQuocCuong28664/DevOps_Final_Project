@@ -10,6 +10,7 @@
 | **Assessment** | Final Exam Project (50% of total course grade) |
 | **Architecture Tier** | Tier 5 – Expert: Kubernetes-Based Architecture (Amazon EKS) |
 | **Production URL** | [https://www.moteo.fun](https://www.moteo.fun) |
+| **Staging URL** | [https://staging.moteo.fun](https://staging.moteo.fun) |
 | **Repository** | [github.com/DinhQuocCuong28664/DevOps_Final_Project](https://github.com/DinhQuocCuong28664/DevOps_Final_Project) |
 | **Container Registry** | [hub.docker.com/r/dinhquoccuong286/devops-final-app](https://hub.docker.com/r/dinhquoccuong286/devops-final-app) |
 | **Jenkins URL** | [https://jenkins.moteo.fun](https://jenkins.moteo.fun) |
@@ -236,6 +237,7 @@ The system is accessible through the registered domain `moteo.fun`, which is man
 | Subdomain | Record Type | Target | Purpose |
 |-----------|------------|--------|---------|
 | `www.moteo.fun` | CNAME | AWS ELB hostname of NGINX Ingress Controller | Production application access |
+| `staging.moteo.fun` | CNAME | AWS ELB hostname of NGINX Ingress Controller | Staging application access |
 | `jenkins.moteo.fun` | A | Elastic IP of Jenkins EC2 instance | Self-hosted CI/CD access |
 
 HTTPS for the production application is managed internally within the Kubernetes cluster using Cert-Manager and Let's Encrypt. A ClusterIssuer resource is configured with the ACME HTTP-01 challenge type, which automatically provisions and renews TLS certificates. The issued certificate is stored as a Kubernetes Secret (`moteo-tls-secret`) and referenced by the Ingress resource. HTTPS for the Jenkins server is managed separately using Certbot running on the EC2 instance, which configures Nginx to terminate TLS and proxy requests to the Jenkins container.
@@ -243,7 +245,7 @@ HTTPS for the production application is managed internally within the Kubernetes
 ```
 [Figure 6: Hostinger DNS Records]
 ```
-*Screenshot: Hostinger DNS zone editor showing the CNAME record for `www.moteo.fun` and A record for `jenkins.moteo.fun`.*
+*Screenshot: Hostinger DNS zone editor showing CNAME records for `www.moteo.fun` and `staging.moteo.fun`, plus the A record for `jenkins.moteo.fun`.*
 
 ### 2.6 Security Considerations
 
@@ -304,7 +306,7 @@ Following successful validation, the pipeline authenticates to Docker Hub using 
 
 Upon successful completion of the CI job, the second job automatically deploys the validated image to the staging environment. This job configures AWS credentials and connects kubectl to the EKS cluster. It then applies the staging namespace, deployment, and service manifests after replacing the `IMAGE_TAG_PLACEHOLDER` with the current Git commit SHA.
 
-The staging environment does not deploy its own MongoDB instance. Instead, it connects to the production MongoDB instance using Kubernetes cross-namespace DNS resolution (`mongodb-service.production.svc.cluster.local`) and uses a separate database (`products_db_staging`) to maintain data isolation. This design decision reduces resource consumption in the student environment while still providing a functionally complete staging environment.
+The staging environment is exposed publicly through `https://staging.moteo.fun` using the same NGINX Ingress Controller as production, with host-based routing to the staging namespace. It does not deploy its own MongoDB instance. Instead, it connects to the production MongoDB instance using Kubernetes cross-namespace DNS resolution (`mongodb-service.production.svc.cluster.local`) and uses a separate database (`products_db_staging`) to maintain data isolation. This design decision reduces resource consumption in the student environment while still providing a functionally complete staging environment.
 
 After applying the manifests, the pipeline waits for the deployment rollout to complete with a 120-second timeout. This ensures that the staging environment is fully operational before proceeding.
 
@@ -378,7 +380,7 @@ The system implements two logically isolated environments using Kubernetes names
 | Replica Count | 1 | 2 (minimum), 5 (maximum via HPA) |
 | Service Type | ClusterIP (internal only) | ClusterIP (external access via NGINX Ingress) |
 | Deployment Trigger | Automatic (after CI passes) | Manual approval required |
-| Domain Access | Internal cluster only | `www.moteo.fun` (HTTPS) |
+| Domain Access | `staging.moteo.fun` (HTTPS) | `www.moteo.fun` (HTTPS) |
 | Resource Requests | 100m CPU, 128 MiB RAM | 100m CPU, 128 MiB RAM |
 | Resource Limits | 250m CPU, 256 MiB RAM | 250m CPU, 256 MiB RAM |
 
@@ -482,6 +484,7 @@ The following table enumerates all Kubernetes manifests used in the project, org
 | `staging/namespace.yaml` | — | Creates the `staging` namespace |
 | `staging/deployment.yaml` | staging | Single-replica deployment with readiness probe |
 | `staging/service.yaml` | staging | ClusterIP service (port 80 to 3000) |
+| `staging/ingress-ssl.yaml` | staging | HTTPS Ingress for `staging.moteo.fun` |
 | `production/namespace.yaml` | — | Creates the `production` namespace |
 | `deployment.yaml` | production | Two-replica deployment with RollingUpdate strategy |
 | `service.yaml` | production | ClusterIP service (port 80 to 3000, internal only) |
@@ -672,6 +675,7 @@ Throughout the development and operation of this system, the team encountered se
 | GitHub Repository | [https://github.com/DinhQuocCuong28664/DevOps_Final_Project](https://github.com/DinhQuocCuong28664/DevOps_Final_Project) | Source code, infrastructure definitions, pipeline configurations, and documentation |
 | Docker Hub Registry | [https://hub.docker.com/r/dinhquoccuong286/devops-final-app](https://hub.docker.com/r/dinhquoccuong286/devops-final-app) | Container images tagged with explicit Git commit SHA |
 | Production Website | [https://www.moteo.fun](https://www.moteo.fun) | Live production application with HTTPS |
+| Staging Website | [https://staging.moteo.fun](https://staging.moteo.fun) | Live staging application with HTTPS |
 | Jenkins CI/CD | [https://jenkins.moteo.fun](https://jenkins.moteo.fun) | Self-hosted Jenkins server |
 | Video Demonstration | [Video Demonstration Link — placeholder] | End-to-end walkthrough following the mandatory demo scenario |
 
